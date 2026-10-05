@@ -13,6 +13,7 @@ async function shutdown() {
 process.once("SIGINT", () => shutdown().catch(console.error));
 process.once("SIGTERM", () => shutdown().catch(console.error));
 server.onclose = () => speech.stop();
+process.stdin.once("end", () => shutdown().catch(console.error));
 
 server.connect(new StdioServerTransport()).then(() => {
   console.error("MCP Speak Server running on stdio");

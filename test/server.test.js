@@ -5,6 +5,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createServer } from "../src/server.js";
 import { createSpeech, validateSpeak } from "../src/speech.js";
+import { AI_INSTRUCTIONS } from "../src/instructions.js";
 
 async function withClient(speech, run) {
   const { server } = createServer({ speech });
@@ -26,7 +27,14 @@ test("MCP exposes both tools and returns valid successful results", async () => 
     listVoices: async () => "Kyoko ja_JP # test",
   }, async (client) => {
     const tools = await client.listTools();
-    assert.deepEqual(tools.tools.map((tool) => tool.name), ["speak", "list_voices"]);
+    assert.equal(client.getInstructions(), AI_INSTRUCTIONS);
+    assert.match(client.getInstructions(), /自動発話を発生させません/);
+    assert.match(client.getInstructions(), /秘密情報/);
+    assert.match(client.getInstructions(), /AIの判断でunmute_speech/);
+    assert.match(tools.tools[0].description, /受付または破棄/);
+    assert.match(tools.tools[0].description, /重複報告/);
+    assert.match(tools.tools.find((tool) => tool.name === "unmute_speech").description, /明示依頼/);
+    assert.deepEqual(tools.tools.map((tool) => tool.name), ["speak", "list_voices", "queue_status", "stop_speech", "unmute_speech", "mute_speech"]);
     const schema = tools.tools[0].inputSchema.properties.rate;
     assert.deepEqual([schema.minimum, schema.maximum, schema.default], [1, 500, 175]);
     const response = await client.callTool({ name: "speak", arguments: { text: "hello" } });

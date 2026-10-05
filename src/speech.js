@@ -9,10 +9,12 @@ export function validateSpeak(args) {
   if (typeof args.text !== "string" || args.text.trim().length === 0) {
     throw new Error("textには空白だけではない文字列を指定してください");
   }
+  if (Buffer.byteLength(args.text) > 65536) throw new Error("textはUTF-8で64KiB以内にしてください");
   if (args.voice !== undefined &&
       (typeof args.voice !== "string" || args.voice.trim().length === 0)) {
     throw new Error("voiceには空白だけではない文字列を指定してください");
   }
+  if (args.voice !== undefined && args.voice.length > 256) throw new Error("voiceは256文字以内にしてください");
   const rate = args.rate === undefined ? 175 : args.rate;
   if (!Number.isInteger(rate) || rate < 1 || rate > 500) {
     throw new Error("rateには1〜500の整数を指定してください");

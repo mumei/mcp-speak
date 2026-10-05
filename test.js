@@ -14,13 +14,13 @@ const transport = new StdioClientTransport({
 try {
   await client.connect(transport);
   const tools = await client.listTools();
-  assert.deepEqual(tools.tools.map((tool) => tool.name).sort(), ["list_voices", "speak"]);
+  assert.deepEqual(tools.tools.map((tool) => tool.name).sort(), ["list_voices", "mute_speech", "queue_status", "speak", "stop_speech", "unmute_speech"]);
   const voices = await client.callTool({ name: "list_voices", arguments: {} });
   assert.notEqual(voices.isError, true, voices.content[0]?.text);
   assert.match(voices.content[0].text, /[a-z]{2}_[A-Z]{2}/);
   const invalid = await client.callTool({ name: "speak", arguments: { text: "test", rate: 0 } });
   assert.equal(invalid.isError, true);
-  const speech = await client.callTool({ name: "speak", arguments: { text: "MCP test", rate: 200 } });
+  const speech = await client.callTool({ name: "speak", arguments: { text: "テストです。", rate: 200 } });
   assert.notEqual(speech.isError, true, speech.content[0]?.text);
   assert.match(speech.content[0].text, /速度: 200/);
   console.log("MCP接続・音声一覧・入力拒否・読み上げ受付を確認しました。再生完了や音質は検査していません。");

@@ -1,6 +1,6 @@
 {
   "name": "mcp-speak",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Local macOS text-to-speech MCP server using the built-in say command",
   "type": "module",
   "main": "index.js",
@@ -9,9 +9,16 @@
   },
   "scripts": {
     "start": "node index.js",
-    "check": "node --check index.js && node --check src/server.js && node --check src/speech.js && node --check test.js && node --check test/server.test.js && node --check test/speech.test.js",
+    "check": "node scripts/check.js",
     "test": "node --test test/*.test.js",
-    "test:smoke": "node test.js"
+    "test:smoke": "node test.js",
+    "worker": "node src/worker.js",
+    "queue:status": "node src/queue-cli.js status",
+    "queue:stop": "node src/queue-cli.js stop",
+    "queue:shutdown": "node src/queue-cli.js shutdown",
+    "queue:mute": "node src/queue-cli.js mute",
+    "queue:unmute": "node src/queue-cli.js unmute",
+    "test:queue:smoke": "node scripts/queue-smoke.js"
   },
   "keywords": [
     "mcp",
