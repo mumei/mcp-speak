@@ -1,0 +1,46 @@
+{
+  "name": "mcp-speak",
+  "version": "1.0.0",
+  "description": "Local macOS text-to-speech MCP server using the built-in say command",
+  "type": "module",
+  "main": "index.js",
+  "bin": {
+    "mcp-speak": "./index.js"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "check": "node --check index.js && node --check src/server.js && node --check src/speech.js && node --check test.js && node --check test/server.test.js && node --check test/speech.test.js",
+    "test": "node --test test/*.test.js",
+    "test:smoke": "node test.js"
+  },
+  "keywords": [
+    "mcp",
+    "text-to-speech",
+    "say",
+    "tts"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.0"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "os": [
+    "darwin"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mumei/mcp-speak.git"
+  },
+  "homepage": "https://github.com/mumei/mcp-speak#readme",
+  "bugs": {
+    "url": "https://github.com/mumei/mcp-speak/issues"
+  },
+  "files": [
+    "index.js",
+    "src/",
+    "README.md",
+    "LICENSE"
+  ]
+}
