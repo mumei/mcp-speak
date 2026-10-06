@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MCP Speak · 再生と履歴</title>
+  <link rel="stylesheet" href="/app.css"><script src="/app.js" defer></script>
+</head>
+<body>
+  <header><a class="wordmark" href="/">MCP Speak</a><span id="connection" role="status">接続を確認中</span></header>
+  <main>
+    <div class="page-title"><h1>再生と履歴</h1><p>このMacの共有キュー</p></div>
+    <p id="error" class="error" role="alert" hidden></p>
+    <div class="workbench">
+      <section class="now" aria-labelledby="now-title">
+        <div class="section-head"><h2 id="now-title">現在の再生</h2><span id="play-state">取得中</span></div>
+        <p id="current-text" class="current-text">共有ワーカーの状態を確認しています。</p>
+        <dl class="queue-stats"><div><dt>待機</dt><dd id="pending">—</dd></div><div><dt>接続クライアント</dt><dd id="clients">—</dd></div></dl>
+      </section>
+      <section class="controls" aria-labelledby="mute-title">
+        <h2 id="mute-title">ミュート</h2><p id="mute-state" role="status">取得中</p>
+        <button id="hold" disabled>保留ミュート</button><p class="hint">現在の再生を止め、待機分と新しい依頼を保留します。</p>
+        <button id="discard" disabled>破棄ミュート</button><p class="hint">現在の再生を止め、待機分と新しい依頼を破棄します。</p>
+        <button id="unmute" class="primary" disabled>ミュート解除</button><p class="hint">保留分を受け付けた順に再生します。</p>
+      </section>
+    </div>
+    <section class="history" aria-labelledby="history-title">
+      <div class="section-head"><div><h2 id="history-title">発話履歴</h2><p class="hint">起動中の直近100件。各文章は先頭512文字。ワーカー終了で消えます。</p></div><button id="clear" disabled>履歴を消去</button></div>
+      <p id="empty">まだ履歴はありません。MCPクライアントで読み上げを依頼すると、ここに記録されます。</p>
+      <ol id="history-list"></ol>
+    </section>
+  </main>
+  <footer>文章と状態はこのMac内だけで扱います。録音・外部送信は行いません。</footer>
+  <dialog id="clear-dialog"><form id="clear-form"><h2>履歴の消去</h2><p>記録だけを消します。再生中・待機中の依頼は止まりません。</p><label for="confirmation">「消去」と入力してください</label><input id="confirmation" autocomplete="off"><div class="dialog-actions"><button type="button" id="close-dialog">戻る</button><button id="confirm-clear" type="submit" disabled>履歴を消去</button></div></form></dialog>
+</body>
+</html>

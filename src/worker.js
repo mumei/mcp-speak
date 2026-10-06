@@ -20,6 +20,19 @@ export async function startWorker({ config = queueConfig(), player = ["/usr/bin/
   let draining = false;
   let muted = false;
   let muteMode = "hold";
+  let history = [];
+  const authenticatedSockets = new Set();
+  function remember(id, input, status) {
+    const characters = Array.from(input.text);
+    const entry = { jobId: id, text: characters.slice(0, 512).join(""), truncated: characters.length > 512,
+      status, acceptedAt: Date.now(), startedAt: null, endedAt: null, error: null };
+    history.push(entry);
+    if (history.length > 100) history.shift();
+    return entry;
+  }
+  function outcome(job, status, error = null) {
+    Object.assign(job.record, { status, error: error?.slice(0, 160) || null, endedAt: Date.now() });
+  }
   const statePath = path.join(config.directory, "mute-state.json");
   try {
     const fd = openSync(statePath, constants.O_RDONLY | constants.O_NOFOLLOW);
@@ -47,7 +60,12 @@ export async function startWorker({ config = queueConfig(), player = ["/usr/bin/
     socket.once("close", () => {
       clearTimeout(authTimer);
       sockets.delete(socket);
-      queue = queue.filter((job) => job.socket !== socket);
+      authenticatedSockets.delete(socket);
+      queue = queue.filter((job) => {
+        if (job.socket !== socket) return true;
+        outcome(job, "cancelled", "依頼元が切断しました");
+        return false;
+      });
       if (active?.socket === socket) cancelActive();
       scheduleIdle();
     });
@@ -63,12 +81,20 @@ export async function startWorker({ config = queueConfig(), player = ["/usr/bin/
             return socket.end();
           }
           authenticated = true;
+          authenticatedSockets.add(socket);
           clearTimeout(authTimer);
           return reply({ workerPid: process.pid, version: 1 });
         }
-        if (message.type === "status") return reply({ workerPid: process.pid, pending: queue.length, playing: Boolean(active), muted, muteMode, fault: fault || null, maxJobs: MAX_JOBS });
+        if (message.type === "status") return reply({ workerPid: process.pid, pending: queue.length, playing: Boolean(active), muted, muteMode, fault: fault || null, maxJobs: MAX_JOBS,
+          connections: authenticatedSockets.size, current: active ? { jobId: active.id, text: active.input.text, status: active.record.status, startedAt: active.record.startedAt } : null });
+        if (message.type === "history") return reply({ entries: [...history].reverse(), limit: 100, textLimit: 512, storage: "memory" });
+        if (message.type === "clear_history") { history = []; return reply({ cleared: true }); }
         if (message.type === "cancel") {
-          queue = queue.filter((job) => !(job.id === message.jobId && job.socket === socket));
+          queue = queue.filter((job) => {
+            if (!(job.id === message.jobId && job.socket === socket)) return true;
+            outcome(job, "cancelled", "依頼はキャンセルされました");
+            return false;
+          });
           if (active?.id === message.jobId && active.socket === socket) cancelActive();
           return reply({ cancelled: true });
         }
@@ -103,10 +129,14 @@ export async function startWorker({ config = queueConfig(), player = ["/usr/bin/
         validateObject(message.args, ["text", "voice", "rate"]);
         const input = validateSpeak(message.args);
         if (Buffer.byteLength(input.text) > MAX_TEXT_BYTES || (input.voice?.length || 0) > 256) throw new Error("読み上げ入力が上限を超えています");
-        if (muted && muteMode === "discard") return reply({ discarded: true, jobId: message.id, queuePosition: 0 });
+        if (muted && muteMode === "discard") {
+          const record = remember(message.id, input, "discarded");
+          Object.assign(record, { endedAt: Date.now(), error: "破棄ミュート中の依頼です" });
+          return reply({ discarded: true, jobId: message.id, queuePosition: 0 });
+        }
         if (queue.length + (active ? 1 : 0) >= MAX_JOBS) throw new Error("共有キューが満杯です（上限100件）");
         if (queue.some((job) => job.id === message.id) || active?.id === message.id) throw new Error("重複した依頼IDです");
-        queue.push({ id: message.id, input, socket });
+        queue.push({ id: message.id, input, socket, record: remember(message.id, input, "accepted") });
         reply({ jobId: message.id, queuePosition: queue.length + (active ? 1 : 0) });
         void drain();
       } catch (error) { send(socket, { id: message?.id, ok: false, error: error.message }); }
@@ -115,11 +145,15 @@ export async function startWorker({ config = queueConfig(), player = ["/usr/bin/
   function finish(job, ok, error) { send(job.socket, { type: "finished", jobId: job.id, ok, error }); }
   function clearQueue() {
     const discarded = queue.length;
-    for (const job of queue) finish(job, false, "待機中の読み上げは停止されました");
+    for (const job of queue) {
+      outcome(job, "discarded", "待機中の読み上げは停止されました");
+      finish(job, false, "待機中の読み上げは停止されました");
+    }
     queue = [];
     return discarded;
   }
   function cancelActive() {
+    if (active) active.cancelled = true;
     if (active?.guard.connected) active.guard.send({ type: "cancel" }, () => {});
   }
   function scheduleIdle() {
@@ -149,26 +183,32 @@ export async function startWorker({ config = queueConfig(), player = ["/usr/bin/
           stdio: ["ignore", "ignore", "ignore", "ipc"],
         });
         active = { ...job, guard };
+        job.record.status = "preparing";
         let result;
         await new Promise((resolve, reject) => {
           const watchdog = setTimeout(() => {
             cancelActive();
             reject(new Error("再生ガードの終了を確認できません。安全のため共有キューを停止しました"));
           }, playbackMs + 5000);
-          guard.on("message", (message) => { if (message.type === "result") result = message; });
+          guard.on("message", (message) => {
+            if (message.type === "result") result = message;
+            if (message.type === "started") Object.assign(job.record, { status: "playing", startedAt: Date.now() });
+          });
           guard.on("error", (error) => { clearTimeout(watchdog); reject(error); });
           guard.once("exit", () => { clearTimeout(watchdog); resolve(); });
           guard.send({ directory: config.directory, args: job.input, player, playbackMs }, (error) => {
             if (error) { clearTimeout(watchdog); reject(error); }
           });
         });
-        finish(job, Boolean(result?.ok), result?.error || (result ? undefined : "再生ガードが異常終了しました"));
+        const error = result?.error || (result ? undefined : "再生ガードが異常終了しました");
+        outcome(job, active.cancelled || result?.cancelled ? "cancelled" : result?.ok ? "completed" : "failed", error);
+        finish(job, Boolean(result?.ok), error);
         onEvent({ type: "end", jobId: job.id, time: Date.now(), ok: Boolean(result?.ok) });
         active = undefined;
       }
     } catch (error) {
       fault = error.message;
-      if (active) finish(active, false, fault);
+      if (active) { outcome(active, "failed", fault); finish(active, false, fault); }
       clearQueue();
     } finally {
       draining = false;

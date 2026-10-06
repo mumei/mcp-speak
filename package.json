@@ -13,6 +13,7 @@
     "test": "node --test test/*.test.js",
     "test:smoke": "node test.js",
     "worker": "node src/worker.js",
+    "web": "node src/web-cli.js",
     "queue:status": "node src/queue-cli.js status",
     "queue:stop": "node src/queue-cli.js stop",
     "queue:shutdown": "node src/queue-cli.js shutdown",
@@ -47,6 +48,7 @@
   "files": [
     "index.js",
     "src/",
+    "tokens.css",
     "README.md",
     "LICENSE"
   ]

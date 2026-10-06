@@ -125,6 +125,8 @@ export function createQueueSpeech({ config = queueConfig(), autostart = true, lo
     },
     listVoices: () => local.listVoices(),
     status: () => request("status", {}),
+    history: () => request("history", {}),
+    clearHistory: () => request("clear_history", {}),
     stopQueue: () => request("stop", {}),
     mute: (mode) => request("mute", { mode }),
     unmute: () => request("unmute", {}),

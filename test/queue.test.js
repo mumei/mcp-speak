@@ -9,6 +9,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { createQueueSpeech } from "../src/queue-client.js";
 import { prepareConfig } from "../src/queue-config.js";
+import { startWeb } from "../src/web-server.js";
 
 async function waitFor(check, timeout = 8000) {
   const end = Date.now() + timeout;
@@ -83,6 +84,61 @@ test("two real MCP processes share FIFO and never overlap playback", async (t) =
   const events = await waitFor(async () => { const events = await c.events(); return events.length === 4 && events; });
   assert.deepEqual(events.map(({ type, text }) => [type, text]), [["start", "one"], ["end", "one"], ["start", "two"], ["end", "two"]]);
   assert.ok(events[2].time >= events[1].time);
+});
+
+test("Web controls use the same worker, distinguish outcomes and clear only history", async (t) => {
+  const c = await context(t);
+  const one = c.queue();
+  const web = await startWeb({ port: 0, token: "c".repeat(64), speech: c.queue() });
+  t.after(() => web.close());
+  const headers = { Authorization: `Bearer ${"c".repeat(64)}`, Origin: web.origin, "Content-Type": "application/json" };
+  const control = async (path, body = {}) => {
+    const response = await fetch(`${web.origin}/api/${path}`, { method: "POST", headers, body: JSON.stringify(body) });
+    assert.equal(response.status, 200); return response.json();
+  };
+  await control("mute", { mode: "hold" });
+  await one.speak({ text: "<img src=x onerror=alert(1)>" });
+  const state = await (await fetch(`${web.origin}/api/state`, { headers })).json();
+  assert.equal(state.state.workerPid, c.worker.pid);
+  assert.equal(state.state.pending, 1);
+  assert.equal(state.history.entries[0].status, "accepted");
+  await control("mute", { mode: "discard" });
+  await one.speak({ text: "dropped" });
+  assert.deepEqual((await one.history()).entries.map((entry) => entry.status), ["discarded", "discarded"]);
+  await control("unmute");
+  await one.speak({ text: "hang" });
+  await waitFor(async () => (await one.status()).current?.status === "playing");
+  assert.equal((await one.status()).current.text, "hang");
+  await control("mute", { mode: "hold" });
+  await waitFor(async () => (await one.history()).entries[0].status === "cancelled");
+  await control("unmute");
+  await one.speak({ text: "fail" });
+  await waitFor(async () => (await one.history()).entries[0].status === "failed");
+  await one.speak({ text: "done" });
+  await waitFor(async () => (await one.history()).entries[0].status === "completed");
+  await control("mute", { mode: "hold" });
+  await one.speak({ text: "still pending" });
+  await control("clear-history");
+  assert.equal((await one.history()).entries.length, 0);
+  assert.equal((await one.status()).pending, 1);
+  assert.equal((await one.status()).muted, true);
+});
+
+test("history is bounded, truncates long text and disappears on worker restart", async (t) => {
+  const c = await context(t);
+  const one = c.queue();
+  await one.mute("discard");
+  for (let i = 0; i < 102; i++) await one.speak({ text: `${i}:${"\u0001".repeat(1024)}` });
+  const history = await one.history();
+  assert.equal(history.entries.length, 100);
+  assert.equal(Array.from(history.entries[0].text).length, 512);
+  assert.equal(history.entries[0].truncated, true);
+  assert.ok(history.entries.at(-1).text.startsWith("2:"));
+  const exit = once(c.worker, "exit"); c.worker.send({ close: true }); await exit;
+  await c.start();
+  assert.equal((await one.history()).entries.length, 0);
+  assert.equal((await one.status()).muteMode, "discard");
+  assert.equal((await one.status()).muted, true);
 });
 
 test("failed playback advances the common queue", async (t) => {

@@ -8,6 +8,7 @@ import { validateSpeak } from "./speech.js";
 let child;
 let cancelRequested = false;
 let killTimer;
+let timedOut = false;
 function cancel() {
   cancelRequested = true;
   if (child) {
@@ -43,7 +44,9 @@ process.once("message", async ({ directory, args, player, playbackMs }) => {
       child.stdin.on("error", (error) => { errorText = error.message; cancel(); });
       child.once("spawn", () => {
         if (cancelRequested) cancel();
-        else child.stdin.end(input.text);
+        else child.stdin.end(input.text, () => {
+          if (process.connected && !cancelRequested) process.send({ type: "started" });
+        });
       });
       child.once("close", (code) => {
         child = undefined;
@@ -54,11 +57,11 @@ process.once("message", async ({ directory, args, player, playbackMs }) => {
         try { writeFileSync(lease, JSON.stringify({ owner, guardPid: process.pid, sayPid: child.pid }), { mode: 0o600 }); }
         catch (error) { errorText = error.message; cancel(); }
       }
-      deadline = setTimeout(cancel, playbackMs);
+      deadline = setTimeout(() => { timedOut = true; cancel(); }, playbackMs);
     });
     if (process.connected) process.send({ type: "result", ok: true });
   } catch (error) {
-    if (process.connected) process.send({ type: "result", ok: false, error: error.message });
+    if (process.connected) process.send({ type: "result", ok: false, cancelled: cancelRequested && !timedOut, error: timedOut ? "再生時間の上限を超えました" : error.message });
   } finally {
     clearTimeout(deadline);
     clearTimeout(killTimer);
