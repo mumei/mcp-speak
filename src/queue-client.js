@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { prepareConfig, queueConfig, readMessages, send, MAX_TEXT_BYTES } from "./queue-config.js";
 import { createSpeech, validateSpeak } from "./speech.js";
 
-export function createQueueSpeech({ config = queueConfig(), autostart = true, log = console.error } = {}) {
+export function createQueueSpeech({ config = queueConfig(), autostart = true, log = console.error, requestTimeoutMs = 5000 } = {}) {
   let socket;
   let connecting;
   let closed = false;
@@ -13,9 +13,21 @@ export function createQueueSpeech({ config = queueConfig(), autostart = true, lo
   const local = createSpeech();
   async function connect() {
     if (closed) throw new Error("このMCP接続は終了しています");
-    if (socket && !socket.destroyed) return;
     if (connecting) return connecting;
     connecting = (async () => {
+      if (socket && !socket.destroyed) {
+        const current = socket;
+        try {
+          // Probe without enqueueing: a lost reply must never replay speech.
+          await request("status", {}, false, undefined, current);
+          if (closed) throw new Error("このMCP接続は終了しています");
+          return;
+        } catch (error) {
+          current.destroy();
+          if (socket === current) socket = undefined;
+          if (closed) throw error;
+        }
+      }
       const prepared = await prepareConfig(config);
       let launched = false;
       for (let attempt = 0; attempt < 100; attempt++) {
@@ -29,23 +41,25 @@ export function createQueueSpeech({ config = queueConfig(), autostart = true, lo
             stream.once("close", () => clearTimeout(timer));
           });
           socket = candidate;
-          socket.on("error", () => {});
-          socket.once("close", () => {
-            for (const item of pending.values()) item.reject(new Error("共有再生ワーカーとの接続が終了しました。自動再送はしません"));
-            pending.clear();
+          candidate.on("error", () => {});
+          candidate.once("close", () => {
+            if (socket === candidate) socket = undefined;
+            for (const item of pending.values()) {
+              if (item.socket === candidate) item.reject(new Error("共有再生ワーカーとの接続が終了しました。自動再送はしません"));
+            }
           });
-          readMessages(socket, (message) => {
+          readMessages(candidate, (message) => {
             if (message.type === "finished") {
               if (!message.ok) log(`読み上げ ${message.jobId} が失敗しました: ${message.error}`);
               return;
             }
             const item = pending.get(message.id);
-            if (!item) return;
+            if (!item || item.socket !== candidate) return;
             pending.delete(message.id);
             if (message.ok) item.resolve(message.result);
             else item.reject(new Error(message.error));
           });
-          await request("hello", { token: prepared.token, version: 1 }, false);
+          await request("hello", { token: prepared.token, version: 1 }, false, undefined, candidate);
           if (closed) {
             socket.destroy();
             throw new Error("このMCP接続は終了しています");
@@ -71,16 +85,18 @@ export function createQueueSpeech({ config = queueConfig(), autostart = true, lo
     })().finally(() => { connecting = undefined; });
     return connecting;
   }
-  async function request(type, args, ensure = true, signal) {
+  async function request(type, args, ensure = true, signal, connection) {
     if (signal?.aborted) throw new Error("依頼はキャンセルされました");
     if (ensure) await connect();
     if (signal?.aborted) throw new Error("依頼はキャンセルされました");
+    const stream = connection || socket;
+    if (!stream || stream.destroyed || closed) throw new Error("共有再生ワーカーとの接続が終了しました。自動再送はしません");
     const id = randomUUID();
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
-        socket?.destroy();
+        stream.destroy();
         fail(new Error("キュー応答がタイムアウトしました。自動再送はしません"));
-      }, 5000);
+      }, requestTimeoutMs);
       const cleanup = () => {
         clearTimeout(timer);
         signal?.removeEventListener("abort", abort);
@@ -88,15 +104,16 @@ export function createQueueSpeech({ config = queueConfig(), autostart = true, lo
       };
       const fail = (error) => { cleanup(); reject(error); };
       const abort = () => {
-        if (type === "enqueue") send(socket, { type: "cancel", id: randomUUID(), jobId: id });
+        if (type === "enqueue") send(stream, { type: "cancel", id: randomUUID(), jobId: id });
         fail(new Error("依頼はキャンセルされました"));
       };
       pending.set(id, {
+        socket: stream,
         resolve: (value) => { cleanup(); resolve(value); },
         reject: fail,
       });
       signal?.addEventListener("abort", abort, { once: true });
-      send(socket, { type, id, ...args });
+      send(stream, { type, id, ...args });
     });
   }
   return {

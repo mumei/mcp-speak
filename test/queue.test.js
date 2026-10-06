@@ -246,6 +246,30 @@ test("mute state survives worker restart and does not silently unmute", async (t
   assert.deepEqual(await c.events(), []);
 });
 
+test("existing MCP clients reconnect after worker restart, preserve mute and share FIFO", async (t) => {
+  const c = await context(t);
+  const [one, two] = await Promise.all([c.mcp(), c.mcp()]);
+  await one.callTool({ name: "mute_speech", arguments: { mode: "hold" } });
+  await two.callTool({ name: "queue_status" });
+  const exited = once(c.worker, "exit");
+  c.worker.send({ close: true });
+  await exited;
+  await c.start();
+  const state = await one.callTool({ name: "queue_status" });
+  assert.notEqual(state.isError, true);
+  assert.equal(JSON.parse(state.content[0].text).muteMode, "hold");
+  assert.equal(JSON.parse(state.content[0].text).muted, true);
+  for (const [client, text] of [[one, "resumed one"], [two, "resumed two"]]) {
+    const result = await client.callTool({ name: "speak", arguments: { text } });
+    assert.notEqual(result.isError, true);
+  }
+  assert.deepEqual(await c.events(), []);
+  await two.callTool({ name: "unmute_speech" });
+  const events = await waitFor(async () => { const events = await c.events(); return events.length === 4 && events; });
+  assert.deepEqual(events.map(({ type, text }) => [type, text]), [["start", "resumed one"], ["end", "resumed one"], ["start", "resumed two"], ["end", "resumed two"]]);
+  assert.ok(events[2].time >= events[1].time);
+});
+
 test("two MCP processes starting simultaneously elect only one common worker", async (t) => {
   const c = await context(t);
   const exit = once(c.worker, "exit");
