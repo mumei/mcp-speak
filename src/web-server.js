@@ -11,7 +11,7 @@ const assets = new Map([
 ]);
 
 export async function startWeb({ port = Number(process.env.MCP_SPEAK_WEB_PORT || 44000 + process.getuid() % 1000),
-  speech = createQueueSpeech(), token = randomBytes(32).toString("hex") } = {}) {
+  speech = createQueueSpeech(), token = randomBytes(32).toString("hex"), identity, onLease } = {}) {
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error("Webポートが不正です");
   if (!/^[a-f0-9]{64}$/.test(token)) throw new Error("Web認証キーが不正です");
   let origin;
@@ -32,6 +32,10 @@ export async function startWeb({ port = Number(process.env.MCP_SPEAK_WEB_PORT ||
       if (!req.url?.startsWith("/api/")) return json(404, { error: "画面が見つかりません" });
       const key = req.headers.authorization?.replace(/^Bearer /, "") || "";
       if (!/^[a-f0-9]{64}$/.test(key) || !timingSafeEqual(Buffer.from(key), Buffer.from(token))) return json(401, { error: "起動時の認証付きURLで開いてください" });
+      if (req.method === "GET" && req.url === "/api/identity" && identity) return json(200, identity);
+      if (req.method === "GET" && req.url === "/api/lease" && onLease) {
+        onLease(res); res.writeHead(200, { "Content-Type": "application/json" }); res.write("{\"connected\":true}\n"); return;
+      }
       if (req.method === "GET" && req.url === "/api/state") {
         const [state, history] = await Promise.all([speech.status(), speech.history()]);
         return json(200, { state, history });

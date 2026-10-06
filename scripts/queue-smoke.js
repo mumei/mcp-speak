@@ -23,7 +23,7 @@ try {
     await client.connect(new StdioClientTransport({
       command: process.execPath,
       args: [fileURLToPath(new URL("../index.js", import.meta.url))],
-      env: { ...process.env, MCP_SPEAK_QUEUE_DIR: directory, MCP_SPEAK_QUEUE_PORT: String(port) },
+      env: { ...process.env, MCP_SPEAK_WEB_AUTOSTART: "0", MCP_SPEAK_QUEUE_DIR: directory, MCP_SPEAK_QUEUE_PORT: String(port) },
       stderr: "pipe",
     }));
   }

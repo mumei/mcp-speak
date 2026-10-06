@@ -9,6 +9,7 @@ const client = new Client({ name: "smoke-client", version: "1.0.0" }, { capabili
 const transport = new StdioClientTransport({
   command: process.execPath,
   args: [fileURLToPath(new URL("./index.js", import.meta.url))],
+  env: { ...process.env, MCP_SPEAK_WEB_AUTOSTART: "0" },
 });
 
 try {
