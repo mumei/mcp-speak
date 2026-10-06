@@ -21,7 +21,7 @@ async function waitFor(check, timeout = 8000) {
   throw new Error("test condition timed out");
 }
 
-async function context(t, playbackMs = 120000) {
+async function context(t, playbackMs = 120000, idleMs = 5000) {
   const root = await fs.mkdtemp("/tmp/mcp-speak-queue-test-");
   const listener = net.createServer();
   listener.listen(0, "127.0.0.1");
@@ -30,7 +30,7 @@ async function context(t, playbackMs = 120000) {
   await new Promise((resolve) => listener.close(resolve));
   const config = { directory: `${root}/queue`, port };
   const eventsPath = `${root}/events`;
-  const env = { ...process.env, MCP_SPEAK_QUEUE_DIR: config.directory, MCP_SPEAK_QUEUE_PORT: String(port), QUEUE_TEST_EVENTS: eventsPath, QUEUE_TEST_TIMEOUT: String(playbackMs) };
+  const env = { ...process.env, MCP_SPEAK_WEB_AUTOSTART: "0", MCP_SPEAK_QUEUE_DIR: config.directory, MCP_SPEAK_QUEUE_PORT: String(port), QUEUE_TEST_EVENTS: eventsPath, QUEUE_TEST_TIMEOUT: String(playbackMs), QUEUE_TEST_IDLE: String(idleMs) };
   const workers = [];
   const clients = [];
   const queues = [];
@@ -379,7 +379,7 @@ test("global stop leaves unrelated processes alive", async (t) => {
 });
 
 test("idle worker exits after its last client disconnects", async (t) => {
-  const c = await context(t);
+  const c = await context(t, 120000, 500);
   const one = c.queue();
   await one.status();
   const exited = once(c.worker, "exit");

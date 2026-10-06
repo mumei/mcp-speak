@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 const worker = await startWorker({
   config: queueConfig(),
   player: [process.execPath, fileURLToPath(new URL("./player.js", import.meta.url))],
-  idleMs: 500,
+  idleMs: Number(process.env.QUEUE_TEST_IDLE || 5000),
   playbackMs: Number(process.env.QUEUE_TEST_TIMEOUT || 120000),
 });
 process.send({ ready: true });
