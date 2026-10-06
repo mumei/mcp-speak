@@ -4,8 +4,8 @@ let input = "";
 process.stdin.setEncoding("utf8");
 process.stdin.on("data", (chunk) => { input += chunk; });
 process.stdin.on("end", () => {
-  fs.appendFileSync(eventFile, JSON.stringify({ type: "start", text: input, pid: process.pid, time: Date.now() }) + "\n");
   if (input === "fail") {
+    fs.appendFileSync(eventFile, JSON.stringify({ type: "start", text: input, pid: process.pid, time: Date.now() }) + "\n");
     fs.appendFileSync(eventFile, JSON.stringify({ type: "end", text: input, pid: process.pid, time: Date.now() }) + "\n");
     process.exit(1);
   }
@@ -16,4 +16,6 @@ process.stdin.on("end", () => {
     process.exit(code);
   }
   process.once("SIGTERM", () => { if (input !== "ignore") end(0); });
+  // Tests may cancel as soon as they observe start; install the handler first.
+  fs.appendFileSync(eventFile, JSON.stringify({ type: "start", text: input, pid: process.pid, time: Date.now() }) + "\n");
 });
