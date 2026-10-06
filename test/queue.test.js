@@ -89,9 +89,9 @@ test("two real MCP processes share FIFO and never overlap playback", async (t) =
 test("Web controls use the same worker, distinguish outcomes and clear only history", async (t) => {
   const c = await context(t);
   const one = c.queue();
-  const web = await startWeb({ port: 0, token: "c".repeat(64), speech: c.queue() });
+  const web = await startWeb({ port: 0, speech: c.queue() });
   t.after(() => web.close());
-  const headers = { Authorization: `Bearer ${"c".repeat(64)}`, Origin: web.origin, "Content-Type": "application/json" };
+  const headers = { Origin: web.origin, "Content-Type": "application/json" };
   const control = async (path, body = {}) => {
     const response = await fetch(`${web.origin}/api/${path}`, { method: "POST", headers, body: JSON.stringify(body) });
     assert.equal(response.status, 200); return response.json();

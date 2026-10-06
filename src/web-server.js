@@ -1,6 +1,5 @@
 import http from "node:http";
 import fs from "node:fs/promises";
-import { randomBytes, timingSafeEqual } from "node:crypto";
 import { createQueueSpeech } from "./queue-client.js";
 
 const assets = new Map([
@@ -10,10 +9,9 @@ const assets = new Map([
   ["/tokens.css", ["../tokens.css", "text/css; charset=utf-8"]],
 ]);
 
-export async function startWeb({ port = Number(process.env.MCP_SPEAK_WEB_PORT || 44000 + process.getuid() % 1000),
-  speech = createQueueSpeech(), token = randomBytes(32).toString("hex"), identity, onLease } = {}) {
+export async function startWeb({ port = Number(process.env.MCP_SPEAK_WEB_PORT || 44501),
+  speech = createQueueSpeech(), identity, onLease } = {}) {
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error("Webポートが不正です");
-  if (!/^[a-f0-9]{64}$/.test(token)) throw new Error("Web認証キーが不正です");
   let origin;
   const server = http.createServer(async (req, res) => {
     res.setHeader("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
@@ -30,10 +28,10 @@ export async function startWeb({ port = Number(process.env.MCP_SPEAK_WEB_PORT ||
         return res.end(await fs.readFile(new URL(name, import.meta.url)));
       }
       if (!req.url?.startsWith("/api/")) return json(404, { error: "画面が見つかりません" });
-      const key = req.headers.authorization?.replace(/^Bearer /, "") || "";
-      if (!/^[a-f0-9]{64}$/.test(key) || !timingSafeEqual(Buffer.from(key), Buffer.from(token))) return json(401, { error: "起動時の認証付きURLで開いてください" });
       if (req.method === "GET" && req.url === "/api/identity" && identity) return json(200, identity);
       if (req.method === "GET" && req.url === "/api/lease" && onLease) {
+        if (req.headers.origin !== origin) return json(403, { error: "同じ受付から接続してください" });
+        res.setHeader("X-MCP-Speak-Instance", identity.instanceId);
         onLease(res); res.writeHead(200, { "Content-Type": "application/json" }); res.write("{\"connected\":true}\n"); return;
       }
       if (req.method === "GET" && req.url === "/api/state") {
@@ -62,7 +60,7 @@ export async function startWeb({ port = Number(process.env.MCP_SPEAK_WEB_PORT ||
   server.headersTimeout = 10000;
   await new Promise((resolve, reject) => { server.once("error", reject); server.listen(port, "127.0.0.1", resolve); });
   origin = `http://127.0.0.1:${server.address().port}`;
-  return { server, origin, url: `${origin}/#token=${token}`, async close() {
+  return { server, origin, url: `${origin}/`, async close() {
     speech.stop();
     server.closeAllConnections();
     await new Promise((resolve) => server.close(resolve));

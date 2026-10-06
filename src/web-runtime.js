@@ -9,7 +9,7 @@ import { prepareConfig, queueConfig } from "./queue-config.js";
 import { startWeb } from "./web-server.js";
 
 export function webPort() {
-  const port = Number(process.env.MCP_SPEAK_WEB_PORT || 44000 + process.getuid() % 1000);
+  const port = Number(process.env.MCP_SPEAK_WEB_PORT || 44501);
   if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error("Webポートが不正です");
   return port;
 }
@@ -21,7 +21,7 @@ async function readRegistry(config, port) {
     const stat = await file.stat();
     if (!stat.isFile() || stat.uid !== process.getuid() || (stat.mode & 0o077) !== 0 || stat.size > 8192) throw new Error("Web起動情報の所有者・権限が不正です");
     const info = JSON.parse(await file.readFile("utf8"));
-    if (info.port !== port || info.directory !== config.directory || info.queuePort !== config.port || !/^[a-f0-9]{64}$/.test(info.token)) throw new Error("Web起動情報が接続先と一致しません");
+    if (info.port !== port || info.directory !== config.directory || info.queuePort !== config.port || info.uid !== process.getuid() || !/^[a-f0-9-]{36}$/.test(info.instanceId) || !Number.isInteger(info.pid) || info.pid < 1) throw new Error("Web起動情報が接続先と一致しません");
     return info;
   } catch (error) { if (error.code === "ENOENT") return null; throw error; }
   finally { await file?.close(); }
@@ -29,13 +29,14 @@ async function readRegistry(config, port) {
 function request(info, route, lease = false) {
   return new Promise((resolve, reject) => {
     const req = http.get({ hostname: "127.0.0.1", port: info.port, path: route,
-      headers: { Authorization: `Bearer ${info.token}` }, agent: false }, (res) => {
+      headers: { Origin: `http://127.0.0.1:${info.port}` }, agent: false }, (res) => {
       if (res.statusCode !== 200) { res.resume(); reject(new Error("Web受付を確認できません")); return; }
       if (lease) {
+        if (res.headers["x-mcp-speak-instance"] !== info.instanceId) { res.destroy(); reject(new Error("Web受付が切り替わりました")); return; }
         req.setTimeout(0);
         const closed = new Promise((done) => res.once("close", done));
         res.on("error", () => {}); res.resume();
-        resolve({ ...info, url: `http://127.0.0.1:${info.port}/#token=${info.token}`, closed, close: () => req.destroy() });
+        resolve({ ...info, url: `http://127.0.0.1:${info.port}/`, closed, close: () => req.destroy() });
         return;
       }
       let body = "";
@@ -56,7 +57,7 @@ export async function attachWeb({ config = queueConfig(), port = webPort(), sign
     if (info) {
       try {
         const identity = await request(info, "/api/identity");
-        if (identity.directory !== config.directory || identity.queuePort !== config.port || identity.pid !== info.pid) throw new Error("Web受付の接続先が違います");
+        if (identity.directory !== config.directory || identity.queuePort !== config.port || identity.uid !== process.getuid() || identity.pid !== info.pid || identity.instanceId !== info.instanceId) throw new Error("Web受付の接続先が違います");
         return await request(info, "/api/lease", true);
       } catch { /* A dead sidecar may leave its last private startup record. */ }
     }
@@ -100,11 +101,11 @@ export async function runWebDaemon({ config = queueConfig(), port = webPort(), i
   await prepareConfig(config);
   let leases = 0; let idle; let closing = false; let web;
   const schedule = () => { clearTimeout(idle); if (!leases && !closing) idle = setTimeout(() => void close(), idleMs); };
-  web = await startWeb({ port, identity: { directory: config.directory, queuePort: config.port, pid: process.pid },
+  const identity = { directory: config.directory, queuePort: config.port, uid: process.getuid(), pid: process.pid, instanceId: randomUUID() };
+  web = await startWeb({ port, identity,
     onLease: (res) => { leases++; clearTimeout(idle); res.once("close", () => { leases--; schedule(); }); },
   });
-  const token = new URL(web.url).hash.slice("#token=".length);
-  const info = { directory: config.directory, queuePort: config.port, port, token, pid: process.pid };
+  const info = { ...identity, port };
   const destination = registryPath(config, port);
   const temp = `${destination}.${randomUUID()}.tmp`;
   try { await fs.writeFile(temp, JSON.stringify(info), { mode: 0o600, flag: "wx" }); await fs.rename(temp, destination); }
@@ -113,7 +114,7 @@ export async function runWebDaemon({ config = queueConfig(), port = webPort(), i
     if (closing) return;
     closing = true; clearTimeout(idle);
     const current = await readRegistry(config, port).catch(() => null);
-    if (current?.token === token) await fs.unlink(destination).catch(() => {});
+    if (current?.instanceId === identity.instanceId) await fs.unlink(destination).catch(() => {});
     await web.close();
   }
   schedule();
