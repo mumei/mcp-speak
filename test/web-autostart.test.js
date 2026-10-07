@@ -151,7 +151,7 @@ test("a private record cannot attach to a different user, queue or replaced Web 
   await fs.writeFile(c.recordPath, JSON.stringify(info), { mode: 0o600 });
   let controller; let identityRequests = 0;
   web.server.on("request", (req) => { if (req.url === "/api/identity") { identityRequests++; controller.abort(); } });
-  for (const changed of [{ uid: info.uid + 1 }, { directory: `${info.directory}-other` }, { queuePort: config.port + 1 }, { instanceId: randomUUID() }]) {
+  for (const changed of [{ uid: info.uid + 1 }, { directory: `${info.directory}-other` }, { queuePort: config.port + 1 }, { instanceId: randomUUID() }, {}]) {
     Object.assign(identity, info, changed);
     controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
@@ -159,7 +159,7 @@ test("a private record cannot attach to a different user, queue or replaced Web 
     finally { clearTimeout(timeout); }
   }
   assert.equal(leases, 0);
-  assert.equal(identityRequests, 4);
+  assert.equal(identityRequests, 5);
   assert.equal(web.server.address().port, c.port);
   Object.assign(identity, info);
   assert.equal((await fetch(`${web.origin}/api/lease`)).status, 403);

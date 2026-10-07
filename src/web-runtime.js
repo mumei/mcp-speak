@@ -57,10 +57,14 @@ export async function attachWeb({ config = queueConfig(), port = webPort(), sign
     if (info) {
       try {
         const identity = await request(info, "/api/identity");
+        if (signal?.aborted) throw new Error("Web接続は終了しました");
         if (identity.directory !== config.directory || identity.queuePort !== config.port || identity.uid !== process.getuid() || identity.pid !== info.pid || identity.instanceId !== info.instanceId) throw new Error("Web受付の接続先が違います");
-        return await request(info, "/api/lease", true);
+        const lease = await request(info, "/api/lease", true);
+        if (signal?.aborted) { lease.close(); throw new Error("Web接続は終了しました"); }
+        return lease;
       } catch { /* A dead sidecar may leave its last private startup record. */ }
     }
+    if (signal?.aborted) throw new Error("Web接続は終了しました");
     if (!launched) {
       const child = spawn(process.execPath, [fileURLToPath(new URL("./web-cli.js", import.meta.url)), "--daemon"], {
         detached: true, stdio: "ignore", env: { ...process.env, MCP_SPEAK_QUEUE_DIR: config.directory,
