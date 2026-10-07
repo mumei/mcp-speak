@@ -2,34 +2,44 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MCP Speak · 再生と履歴</title>
+  <title>MCP Speak · 発話履歴と音声設定</title>
   <link rel="stylesheet" href="/app.css"><script src="/app.js" defer></script>
 </head>
 <body>
-  <header><a class="wordmark" href="/">MCP Speak</a><span id="connection" role="status">接続を確認中</span></header>
+  <header><a class="wordmark" href="/">MCP Speak</a><nav aria-label="画面内の移動"><a href="#conversation">履歴</a><a href="#settings-panel">設定</a></nav></header>
   <main>
-    <div class="page-title"><h1>再生と履歴</h1><p>このMacの共有キュー</p></div>
+    <div class="page-title"><h1>発話履歴と音声設定</h1><span id="connection" role="status">接続を確認中</span></div>
     <p id="error" class="error" role="alert" hidden></p>
-    <div class="workbench">
-      <section class="now" aria-labelledby="now-title">
-        <div class="section-head"><h2 id="now-title">現在の再生</h2><span id="play-state">取得中</span></div>
-        <p id="current-text" class="current-text">共有ワーカーの状態を確認しています。</p>
-        <dl class="queue-stats"><div><dt>待機</dt><dd id="pending">—</dd></div><div><dt>接続クライアント</dt><dd id="clients">—</dd></div></dl>
+    <div class="console-layout">
+      <section id="conversation" class="conversation" aria-labelledby="history-title">
+        <div class="section-head"><h2 id="history-title">発話履歴</h2><a class="latest-link" href="#latest">最新へ</a></div>
+        <div class="stream-summary"><span id="play-state">取得中</span><span>待機 <b id="pending">—</b></span><span>接続 <b id="clients">—</b></span></div>
+        <p id="empty">まだ履歴はありません。MCPからの発話や右の試聴がここに並びます。</p>
+        <ol id="history-list" aria-label="受け付けた順の発話履歴"></ol><div id="latest"></div>
+        <div class="history-end"><p class="hint">直近100件・各512文字まで。ワーカー終了で消えます。</p><button id="clear" disabled>履歴を消去</button></div>
       </section>
-      <section class="controls" aria-labelledby="mute-title">
-        <h2 id="mute-title">ミュート</h2><p id="mute-state" role="status">取得中</p>
-        <button id="hold" disabled>保留ミュート</button><p class="hint">現在の再生を止め、待機分と新しい依頼を保留します。</p>
-        <button id="discard" disabled>破棄ミュート</button><p class="hint">現在の再生を止め、待機分と新しい依頼を破棄します。</p>
-        <button id="unmute" class="primary" disabled>ミュート解除</button><p class="hint">保留分を受け付けた順に再生します。</p>
-      </section>
+      <aside id="settings-panel" class="settings-panel" aria-label="再生操作と音声設定">
+        <section class="mute-controls" aria-labelledby="mute-title">
+          <div class="section-head"><h2 id="mute-title">再生の操作</h2><span id="mute-state" role="status">取得中</span></div>
+          <div class="mute-buttons"><button id="hold" disabled>保留</button><button id="discard" disabled>破棄</button><button id="unmute" disabled>解除</button></div>
+          <p id="mute-help" class="hint">保留は待機、破棄は依頼を破棄します。どちらも現在の再生を止めます。</p>
+        </section>
+        <section class="voice-controls" aria-labelledby="voice-title">
+          <h2 id="voice-title">声と話す速さ</h2>
+          <p id="applied-settings" class="hint">保存済みの設定を確認中</p>
+          <form id="voice-form">
+            <div class="field"><label for="voice">音声</label><select id="voice" aria-describedby="voice-help" disabled><option value="">Macの既定音声</option></select><p id="voice-help" class="hint">このMacの音声を読み込んでいます。</p><button id="reload-voices" type="button">音声を再取得</button></div>
+            <div class="field"><label for="rate">話す速度 <span class="hint">1〜500 単語/分</span></label><div class="rate-control"><input id="rate-slider" type="range" min="1" max="500" value="175" aria-label="話す速度のスライダー" disabled><input id="rate" type="number" min="1" max="500" step="1" value="175" required aria-describedby="rate-help" disabled></div><p id="rate-help" class="hint">初期値175。数値でも調整できます。</p></div>
+            <div class="voice-actions"><button id="preview" type="button" disabled>試聴する</button><button id="save-settings" class="primary" type="submit" disabled>設定を保存</button></div>
+            <p id="voice-feedback" class="feedback" role="status"></p>
+          </form>
+          <p class="hint scope-note">保存後に受け付ける発話へ適用します。発話ごとの指定が優先されます。</p>
+          <p id="preview-help" class="hint">試聴も共有キューに並びます。ミュートは解除しません。</p>
+        </section>
+      </aside>
     </div>
-    <section class="history" aria-labelledby="history-title">
-      <div class="section-head"><div><h2 id="history-title">発話履歴</h2><p class="hint">起動中の直近100件。各文章は先頭512文字。ワーカー終了で消えます。</p></div><button id="clear" disabled>履歴を消去</button></div>
-      <p id="empty">まだ履歴はありません。MCPクライアントで読み上げを依頼すると、ここに記録されます。</p>
-      <ol id="history-list"></ol>
-    </section>
   </main>
-  <footer>文章と状態はこのMac内だけで扱います。録音・外部送信は行いません。</footer>
+  <footer class="foot-stmt"><p class="foot-stmt__line">このMacで、声を整える。</p><p class="hint">共有キューの操作画面。録音・外部送信は行いません。</p></footer>
   <dialog id="clear-dialog"><form id="clear-form"><h2>履歴の消去</h2><p>記録だけを消します。再生中・待機中の依頼は止まりません。</p><label for="confirmation">「消去」と入力してください</label><input id="confirmation" autocomplete="off"><div class="dialog-actions"><button type="button" id="close-dialog">戻る</button><button id="confirm-clear" type="submit" disabled>履歴を消去</button></div></form></dialog>
 </body>
 </html>

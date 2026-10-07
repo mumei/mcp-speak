@@ -86,6 +86,68 @@ test("two real MCP processes share FIFO and never overlap playback", async (t) =
   assert.ok(events[2].time >= events[1].time);
 });
 
+test("shared settings resolve omitted fields once, keep queued jobs unchanged and survive restart", async (t) => {
+  const c = await context(t); const one = c.queue(); const two = c.queue();
+  assert.deepEqual(await one.settings(), { voice: null, rate: 175 });
+  await one.mute("hold");
+  const before = await one.speak({ text: "before saving" });
+  await two.saveSettings({ voice: "Kyoko", rate: 220 });
+  assert.equal((await fs.stat(`${c.config.directory}/speech-settings.json`)).mode & 0o777, 0o600);
+  const after = await one.speak({ text: "after saving" });
+  assert.equal(before.rate, 175); assert.equal(before.voice, undefined);
+  assert.equal(after.rate, 220); assert.equal(after.voice, "Kyoko");
+  const explicitVoice = await one.speak({ text: "voice override", voice: "Samantha" });
+  const explicitRate = await one.speak({ text: "rate override", rate: 140 });
+  assert.equal(explicitVoice.voice, "Samantha"); assert.equal(explicitVoice.rate, 220);
+  assert.equal(explicitRate.voice, "Kyoko"); assert.equal(explicitRate.rate, 140);
+  await two.saveSettings({ voice: null, rate: 175 });
+  const entries = (await one.history()).entries;
+  assert.equal(entries.find((entry) => entry.jobId === before.jobId).rate, 175);
+  assert.equal(entries.find((entry) => entry.jobId === after.jobId).rate, 220);
+  await two.saveSettings({ voice: "Kyoko", rate: 225 });
+  const mcp = await c.mcp();
+  const accepted = await mcp.callTool({ name: "speak", arguments: { text: "real MCP shared defaults" } });
+  assert.match(accepted.content[0].text, /音声: Kyoko/); assert.match(accepted.content[0].text, /速度: 225/);
+  await assert.rejects(one.saveSettings({ voice: null, rate: 501 }), /1〜500/);
+  const exited = once(c.worker, "exit"); c.worker.send({ close: true }); await exited; await c.start();
+  assert.deepEqual(await two.settings(), { voice: "Kyoko", rate: 225 });
+  assert.equal((await two.status()).muted, true);
+});
+
+test("preview obeys both mute modes and shares FIFO without applying draft settings", async (t) => {
+  const c = await context(t); const one = c.queue(); const two = c.queue();
+  await one.saveSettings({ voice: "Kyoko", rate: 230 });
+  await one.mute("hold");
+  await two.speak({ text: "normal before preview" });
+  const preview = await one.preview({ text: "preview draft", rate: 150 });
+  await two.speak({ text: "normal after preview" });
+  assert.equal(preview.rate, 150); assert.equal(preview.voice, undefined);
+  assert.equal((await one.status()).pending, 3); assert.equal((await one.status()).muted, true);
+  assert.deepEqual(await one.settings(), { voice: "Kyoko", rate: 230 });
+  assert.equal((await one.history()).entries.find((entry) => entry.jobId === preview.jobId).kind, "preview");
+  await one.unmute();
+  const events = await waitFor(async () => { const rows = await c.events(); return rows.length === 6 && rows; });
+  assert.deepEqual(events.filter((row) => row.type === "start").map((row) => row.text), ["normal before preview", "preview draft", "normal after preview"]);
+  assert.ok(events[2].time >= events[1].time); assert.ok(events[4].time >= events[3].time);
+  await one.mute("discard");
+  assert.equal((await one.preview({ text: "discard preview", rate: 150 })).discarded, true);
+  assert.equal((await one.status()).muted, true); assert.equal((await one.status()).pending, 0);
+  assert.deepEqual(await one.settings(), { voice: "Kyoko", rate: 230 });
+});
+
+test("unsafe persisted speech settings reject shared permissions and symlinks", async (t) => {
+  const c = await context(t); const exited = once(c.worker, "exit"); c.worker.send({ close: true }); await exited;
+  const { startWorker } = await import("../src/worker.js");
+  const destination = `${c.config.directory}/speech-settings.json`;
+  await fs.writeFile(destination, JSON.stringify({ voice: null, rate: 175 }), { mode: 0o644 });
+  await assert.rejects(startWorker({ config: c.config }), /音声設定ファイルの権限/);
+  await fs.unlink(destination);
+  const target = `${c.config.directory}/other-settings`;
+  await fs.writeFile(target, JSON.stringify({ voice: null, rate: 175 }), { mode: 0o600 });
+  await fs.symlink(target, destination);
+  await assert.rejects(startWorker({ config: c.config }), { code: "ELOOP" });
+});
+
 test("Web controls use the same worker, distinguish outcomes and clear only history", async (t) => {
   const c = await context(t);
   const one = c.queue();

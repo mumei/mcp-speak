@@ -1,1 +1,4 @@
-[{"date":"2026-10-06","macrostructure":"Workbench","theme":"Coral","nav":"N9","footer":"Ft2","enrichment":"none","brief":"本人用のローカル再生状態・履歴・ミュート操作"}]
+[
+  {"date":"2026-10-06","macrostructure":"Workbench","theme":"Coral","nav":"N9","footer":"Ft2","enrichment":"none","brief":"本人用のローカル再生状態・履歴・ミュート操作"},
+  {"date":"2026-10-07","macrostructure":"Split Studio","theme":"Cobalt","nav":"N1","footer":"Ft5","enrichment":"none","brief":"本人用。PCは左に時系列の発話履歴、右に再生操作と音声・速度・試聴。狭幅では上下に配置。","adaptations":["ユーザー指定の2パネルを優先","ローカル字体を維持","マーケティング用hero・command paletteは操作画面に適用しない"]}
+]

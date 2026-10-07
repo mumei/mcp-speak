@@ -1,0 +1,31 @@
+{
+  "date": "2026-10-07",
+  "scope": "Local speech console redesign and voice settings",
+  "preflight": "Existing vanilla HTML/CSS/JS and local fonts; cached project preflight from 2026-10-06 remains applicable",
+  "macrostructure": "Split Studio adapted to the user's explicit history-left/settings-right layout",
+  "theme": "Cobalt adapted to local fonts, with semantic OKLCH tokens",
+  "nav": "N1: two actual destinations, history and settings",
+  "footer": "Ft5: short local-console statement",
+  "motion": "120ms pressed-button feedback; reduced-motion disables translation",
+  "selfCritique": {"philosophy":4,"hierarchy":5,"execution":4,"specificity":5,"restraint":5,"variety":4},
+  "slopReview": {
+    "reviewedGates":58,
+    "passedOrNotApplicable":57,
+    "approvedExceptions":[{"gate":1,"reason":"The established user requirement preserves Mac-local fonts, including Japanese display fallbacks, instead of remote font downloads."}],
+    "notes":["Gate 25 uses a 75ch cap on history prose; short settings labels/helpers are constrained by the explicitly requested operation panel.","No marketing hero, fabricated metrics, illustration, video, fake browser chrome, eyebrows, decorative icons or nested cards.","Color/fonts remain in tokens.css. Existing global CSS and its import remain present.","Disabled controls use native disabled, cursor and opacity. Input borders remain 1px; focus uses 2px outline with 1px offset."]
+  },
+  "responsive": {
+    "screenshots":[320,375,414,768,1280],
+    "additionalWidths":[1920],
+    "sweep":"320–1920px in 40px steps",
+    "horizontalOverflow":false,
+    "clippedControls":false,
+    "minimumTargetHeightPx":44,
+    "desktopTwoPanels":true,
+    "narrowStackedWithAllControls":true
+  },
+  "contrastWcag21": {"inkOnPaper":15.09,"mutedOnPaper":7.12,"mutedOnSurface":7.54,"accentOnPaper":6.62,"focusOnPaper":3.96,"focusOnSurface":4.19,"focusOnPrimaryFill":3.81},
+  "interactionChecks":["Keyboard Tab exposes the range/preview focus ring","501 shows an input error; correcting to 220 clears invalid state","Polling preserves edited selections","Hold preview queues without saving defaults or unmuting","Discard preview reports discarded without sound","Save persists and reloads Kyoko/220","Playing speech is highlighted inside the chronological history, including after history is cleared"],
+  "realMacTrial":{"route":"POST /api/preview → shared worker → /usr/bin/say","voice":"Kyoko","rate":175,"status":"completed","savedDefaultsUnchanged":true,"limitation":"Process completion verified; subjective audible quality was not evaluated"},
+  "publication":"Local commit only; no push or package publication"
+}

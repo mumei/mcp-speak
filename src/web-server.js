@@ -1,6 +1,7 @@
 import http from "node:http";
 import fs from "node:fs/promises";
 import { createQueueSpeech } from "./queue-client.js";
+import { parseVoices, validateSettings } from "./speech-settings.js";
 
 const assets = new Map([
   ["/", ["./web/index.html", "text/html; charset=utf-8"]],
@@ -38,7 +39,8 @@ export async function startWeb({ port = Number(process.env.MCP_SPEAK_WEB_PORT ||
         const [state, history] = await Promise.all([speech.status(), speech.history()]);
         return json(200, { state, history });
       }
-      if (req.method !== "POST" || !["/api/mute", "/api/unmute", "/api/clear-history"].includes(req.url)) return json(405, { error: "未対応の操作です" });
+      if (req.method === "GET" && req.url === "/api/voices") return json(200, { voices: parseVoices(await speech.listVoices()) });
+      if (req.method !== "POST" || !["/api/mute", "/api/unmute", "/api/clear-history", "/api/settings", "/api/preview"].includes(req.url)) return json(405, { error: "未対応の操作です" });
       if (req.headers.origin !== origin || req.headers["content-type"] !== "application/json") return json(403, { error: "同じ画面から操作してください" });
       let body = "";
       for await (const chunk of req) {
@@ -48,6 +50,13 @@ export async function startWeb({ port = Number(process.env.MCP_SPEAK_WEB_PORT ||
       let args;
       try { args = JSON.parse(body); } catch { return json(400, { error: "操作データが不正です" }); }
       if (!args || typeof args !== "object" || Array.isArray(args)) return json(400, { error: "操作データが不正です" });
+      if (["/api/settings", "/api/preview"].includes(req.url)) {
+        let selected;
+        try { selected = validateSettings(args); } catch (error) { return json(400, { error: error.message }); }
+        if (selected.voice !== null && !parseVoices(await speech.listVoices()).some((voice) => voice.name === selected.voice)) return json(400, { error: "このMacで利用できる音声を選んでください" });
+        if (req.url === "/api/settings") return json(200, await speech.saveSettings(selected));
+        return json(200, await speech.preview({ text: "こんにちは。音声と読み上げの速さを確認しています。", voice: selected.voice ?? undefined, rate: selected.rate }));
+      }
       if (req.url === "/api/mute") {
         if (Object.keys(args).some((key) => key !== "mode") || !["hold", "discard"].includes(args.mode)) return json(400, { error: "ミュート方式が不正です" });
         return json(200, await speech.mute(args.mode));

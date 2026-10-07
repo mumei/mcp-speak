@@ -1,11 +1,12 @@
-/* Hallmark · tokens · Coral adapted to local Mac fonts */
+/* Hallmark · tokens · Cobalt adapted to a local speech console */
 :root {
-  --color-paper: oklch(97% 0.008 55); --color-surface: oklch(99% 0.004 55);
-  --color-soft: oklch(93% 0.01 55); --color-ink: oklch(23% 0.01 55);
-  --color-muted: oklch(46% 0.012 55); --color-rule: oklch(80% 0.012 55);
-  --color-accent: oklch(46% 0.15 30); --color-accent-ink: oklch(99% 0.004 55);
-  --color-focus: oklch(43% 0.14 30);
-  --font-display: "SFMono-Regular", "Menlo", "Hiragino Sans", monospace;
+  --color-paper: oklch(97% 0.007 250); --color-surface: oklch(99% 0.004 250);
+  --color-soft: oklch(94% 0.012 250); --color-ink: oklch(24% 0.018 258);
+  --color-muted: oklch(44% 0.018 257); --color-rule: oklch(77% 0.016 250);
+  --color-accent: oklch(46% 0.18 256); --color-accent-ink: oklch(99% 0.004 250);
+  --color-focus: oklch(58% 0.14 256);
+  --color-focus-rest: transparent;
+  --font-display: "Avenir Next", "Hiragino Sans", sans-serif;
   --font-body: -apple-system, "Hiragino Sans", "Yu Gothic", sans-serif;
   --space-xs: .5rem; --space-sm: .75rem; --space-md: 1rem; --space-lg: 1.5rem;
   --space-xl: 2.5rem; --space-2xl: 4rem;

@@ -104,7 +104,7 @@ export function createQueueSpeech({ config = queueConfig(), autostart = true, lo
       };
       const fail = (error) => { cleanup(); reject(error); };
       const abort = () => {
-        if (type === "enqueue") send(stream, { type: "cancel", id: randomUUID(), jobId: id });
+        if (type === "enqueue" || type === "preview") send(stream, { type: "cancel", id: randomUUID(), jobId: id });
         fail(new Error("依頼はキャンセルされました"));
       };
       pending.set(id, {
@@ -120,9 +120,17 @@ export function createQueueSpeech({ config = queueConfig(), autostart = true, lo
     async speak(args, { signal } = {}) {
       const input = validateSpeak(args);
       if (Buffer.byteLength(input.text) > MAX_TEXT_BYTES) throw new Error("textはUTF-8で64KiB以内にしてください");
-      const queued = await request("enqueue", { args: input }, true, signal);
+      // Keep omitted fields omitted: the worker resolves shared defaults at acceptance.
+      const submitted = { text: input.text, ...(args.voice === undefined ? {} : { voice: input.voice }), ...(args.rate === undefined ? {} : { rate: input.rate }) };
+      const queued = await request("enqueue", { args: submitted }, true, signal);
       return { ...input, ...queued };
     },
+    async preview(args) {
+      const input = validateSpeak(args);
+      return { ...input, ...await request("preview", { args: input }) };
+    },
+    settings: () => request("settings", {}),
+    saveSettings: (args) => request("save_settings", { args }),
     listVoices: () => local.listVoices(),
     status: () => request("status", {}),
     history: () => request("history", {}),

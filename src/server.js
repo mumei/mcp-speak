@@ -22,8 +22,8 @@ export function createServer({ speech = createQueueSpeech() } = {}) {
           type: "object",
           properties: {
             text: { type: "string", minLength: 1, description: "短い非秘密の要点。同じ内容を重複送信しない。UTF-8で64KiB以内" },
-            voice: { type: "string", minLength: 1, description: "利用可能な音声名。省略時はシステム既定" },
-            rate: { type: "integer", minimum: 1, maximum: 500, default: 175, description: "1分あたりの単語数" },
+            voice: { type: "string", minLength: 1, description: "利用可能な音声名。明示指定を優先し、省略時はWebで保存した共有設定（未設定ならシステム既定）" },
+            rate: { type: "integer", minimum: 1, maximum: 500, description: "1分あたりの単語数。明示指定を優先し、省略時はWebで保存した共有設定（初期値175）" },
           },
           required: ["text"],
           additionalProperties: false,

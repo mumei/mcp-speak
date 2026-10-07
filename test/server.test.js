@@ -36,7 +36,8 @@ test("MCP exposes both tools and returns valid successful results", async () => 
     assert.match(tools.tools.find((tool) => tool.name === "unmute_speech").description, /明示依頼/);
     assert.deepEqual(tools.tools.map((tool) => tool.name), ["speak", "list_voices", "queue_status", "stop_speech", "unmute_speech", "mute_speech"]);
     const schema = tools.tools[0].inputSchema.properties.rate;
-    assert.deepEqual([schema.minimum, schema.maximum, schema.default], [1, 500, 175]);
+    assert.deepEqual([schema.minimum, schema.maximum, schema.default], [1, 500, undefined]);
+    assert.match(schema.description, /共有設定.*175/);
     const response = await client.callTool({ name: "speak", arguments: { text: "hello" } });
     assert.notEqual(response.isError, true);
     assert.match(response.content[0].text, /速度: 175/);

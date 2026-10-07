@@ -1,12 +1,13 @@
 import net from "node:net";
 import fs from "node:fs/promises";
-import { constants, openSync, readFileSync, closeSync, writeFileSync, renameSync, fstatSync } from "node:fs";
+import { constants, openSync, readFileSync, closeSync, writeFileSync, renameSync, fstatSync, unlinkSync } from "node:fs";
 import path from "node:path";
 import { fork } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { timingSafeEqual, randomUUID } from "node:crypto";
 import { prepareConfig, queueConfig, readMessages, send, MAX_JOBS, MAX_TEXT_BYTES } from "./queue-config.js";
 import { validateSpeak, validateObject } from "./speech.js";
+import { DEFAULT_SETTINGS, validateSettings } from "./speech-settings.js";
 
 export async function startWorker({ config = queueConfig(), player = ["/usr/bin/say"], idleMs = 60000, playbackMs = 120000, onEvent = () => {} } = {}) {
   const prepared = await prepareConfig(config);
@@ -21,11 +22,21 @@ export async function startWorker({ config = queueConfig(), player = ["/usr/bin/
   let muted = false;
   let muteMode = "hold";
   let history = [];
+  let settings = { ...DEFAULT_SETTINGS };
+  const settingsPath = path.join(config.directory, "speech-settings.json");
+  try {
+    const fd = openSync(settingsPath, constants.O_RDONLY | constants.O_NOFOLLOW);
+    try {
+      const stat = fstatSync(fd);
+      if (!stat.isFile() || stat.uid !== process.getuid() || (stat.mode & 0o077) !== 0 || stat.size > 4096) throw new Error("音声設定ファイルの権限・サイズが不正です");
+      settings = validateSettings(JSON.parse(readFileSync(fd, "utf8")));
+    } finally { closeSync(fd); }
+  } catch (error) { if (error.code !== "ENOENT") throw error; }
   const authenticatedSockets = new Set();
-  function remember(id, input, status) {
+  function remember(id, input, status, kind) {
     const characters = Array.from(input.text);
     const entry = { jobId: id, text: characters.slice(0, 512).join(""), truncated: characters.length > 512,
-      status, acceptedAt: Date.now(), startedAt: null, endedAt: null, error: null };
+      status, kind, voice: input.voice ?? null, rate: input.rate, acceptedAt: Date.now(), startedAt: null, endedAt: null, error: null };
     history.push(entry);
     if (history.length > 100) history.shift();
     return entry;
@@ -86,7 +97,16 @@ export async function startWorker({ config = queueConfig(), player = ["/usr/bin/
           return reply({ workerPid: process.pid, version: 1 });
         }
         if (message.type === "status") return reply({ workerPid: process.pid, pending: queue.length, playing: Boolean(active), muted, muteMode, fault: fault || null, maxJobs: MAX_JOBS,
-          connections: authenticatedSockets.size, current: active ? { jobId: active.id, text: active.input.text, status: active.record.status, startedAt: active.record.startedAt } : null });
+          connections: authenticatedSockets.size, settings: { ...settings }, current: active ? { ...active.record } : null });
+        if (message.type === "settings") return reply({ ...settings });
+        if (message.type === "save_settings") {
+          const next = validateSettings(message.args);
+          const temporary = `${settingsPath}.${randomUUID()}.tmp`;
+          try { writeFileSync(temporary, JSON.stringify(next), { flag: "wx", mode: 0o600 }); renameSync(temporary, settingsPath); }
+          catch (error) { try { unlinkSync(temporary); } catch {} throw error; }
+          settings = next;
+          return reply({ ...settings });
+        }
         if (message.type === "history") return reply({ entries: [...history].reverse(), limit: 100, textLimit: 512, storage: "memory" });
         if (message.type === "clear_history") { history = []; return reply({ cleared: true }); }
         if (message.type === "cancel") {
@@ -124,20 +144,23 @@ export async function startWorker({ config = queueConfig(), player = ["/usr/bin/
           void close();
           return;
         }
-        if (message.type !== "enqueue") throw new Error("未対応の操作です");
+        if (!["enqueue", "preview"].includes(message.type)) throw new Error("未対応の操作です");
         if (fault || shutdown) throw new Error(fault || "ワーカーは停止中です");
         validateObject(message.args, ["text", "voice", "rate"]);
-        const input = validateSpeak(message.args);
+        const kind = message.type === "preview" ? "preview" : "speech";
+        const input = validateSpeak(kind === "preview" ? message.args : { ...message.args,
+          voice: message.args.voice === undefined ? settings.voice ?? undefined : message.args.voice,
+          rate: message.args.rate === undefined ? settings.rate : message.args.rate });
         if (Buffer.byteLength(input.text) > MAX_TEXT_BYTES || (input.voice?.length || 0) > 256) throw new Error("読み上げ入力が上限を超えています");
         if (muted && muteMode === "discard") {
-          const record = remember(message.id, input, "discarded");
+          const record = remember(message.id, input, "discarded", kind);
           Object.assign(record, { endedAt: Date.now(), error: "破棄ミュート中の依頼です" });
-          return reply({ discarded: true, jobId: message.id, queuePosition: 0 });
+          return reply({ ...input, discarded: true, jobId: message.id, queuePosition: 0 });
         }
         if (queue.length + (active ? 1 : 0) >= MAX_JOBS) throw new Error("共有キューが満杯です（上限100件）");
         if (queue.some((job) => job.id === message.id) || active?.id === message.id) throw new Error("重複した依頼IDです");
-        queue.push({ id: message.id, input, socket, record: remember(message.id, input, "accepted") });
-        reply({ jobId: message.id, queuePosition: queue.length + (active ? 1 : 0) });
+        queue.push({ id: message.id, input, socket, record: remember(message.id, input, "accepted", kind) });
+        reply({ ...input, muted, muteMode, jobId: message.id, queuePosition: queue.length + (active ? 1 : 0) });
         void drain();
       } catch (error) { send(socket, { id: message?.id, ok: false, error: error.message }); }
     });
