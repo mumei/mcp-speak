@@ -22,10 +22,34 @@
     "clippedControls":false,
     "minimumTargetHeightPx":44,
     "desktopTwoPanels":true,
-    "narrowStackedWithAllControls":true
+    "narrowDrawerWithAllControls":true
   },
   "contrastWcag21": {"inkOnPaper":15.09,"mutedOnPaper":7.12,"mutedOnSurface":7.54,"accentOnPaper":6.62,"focusOnPaper":3.96,"focusOnSurface":4.19,"focusOnPrimaryFill":3.81},
   "interactionChecks":["Keyboard Tab exposes the range/preview focus ring","501 shows an input error; correcting to 220 clears invalid state","Polling preserves edited selections","Hold preview queues without saving defaults or unmuting","Discard preview reports discarded without sound","Save persists and reloads Kyoko/220","Playing speech is highlighted inside the chronological history, including after history is cleared"],
   "realMacTrial":{"route":"POST /api/preview → shared worker → /usr/bin/say","voice":"Kyoko","rate":175,"status":"completed","savedDefaultsUnchanged":true,"limitation":"Process completion verified; subjective audible quality was not evaluated"},
-  "publication":"Local commit only; no push or package publication"
+  "mobileDrawerReview": {
+    "scope":"Narrow follow-up; existing Split Studio/Cobalt tokens and PC layout retained without rotation",
+    "selfCritique":{"philosophy":4,"hierarchy":5,"execution":5,"specificity":5,"restraint":5,"variety":3},
+    "implementation":"Native dialog with explicit inert background, Tab cycling, Escape/backdrop/close, body scroll lock and focus/scroll restoration; one settings DOM shared with PC",
+    "shortHistoryCount":3,
+    "shortHistoryViewportsVerified":[320,375,414,768],
+    "shortHistoryCloseScrollY":{"320":667,"375":581,"414":534.5,"768":448},
+    "longHistoryCount":100,
+    "viewports":[320,375,414,768,1280],
+    "longHistoryCloseScrollY":{"320":22764.5,"375":19942.5,"414":19896.5,"768":17016.5},
+    "sameScrollAfterClose":true,
+    "closeButtonTopPx":17,
+    "closeButtonHeightPx":44,
+    "dialogHeightPx":800,
+    "keyboardFocusCycle":true,
+    "backgroundInert":true,
+    "draftRetained":true,
+    "resizeToPcRestoresPanel":true,
+    "resizeToMobileFocusesOpener":true,
+    "controlsVerified":["hold","discard","unmute","voice selection","rate","preview","save","rate validation"],
+    "initialOpenHasNoSpeechSideEffects":true,
+    "screenshots":"mcp-speak-drawer-{320,375,414,768}-{closed,open}.png and mcp-speak-drawer-desktop.png",
+    "slop":"Universal component, contrast and responsive gates reviewed; existing local-font exception retained; no new decoration or motion"
+  },
+  "publication":"Local commits only; no push or package publication"
 }

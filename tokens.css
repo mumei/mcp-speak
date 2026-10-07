@@ -6,6 +6,8 @@
   --color-accent: oklch(46% 0.18 256); --color-accent-ink: oklch(99% 0.004 250);
   --color-focus: oklch(58% 0.14 256);
   --color-focus-rest: transparent;
+  --color-backdrop: oklch(24% 0.018 258 / .35);
+  --z-toolbar: 2;
   --font-display: "Avenir Next", "Hiragino Sans", sans-serif;
   --font-body: -apple-system, "Hiragino Sans", "Yu Gothic", sans-serif;
   --space-xs: .5rem; --space-sm: .75rem; --space-md: 1rem; --space-lg: 1.5rem;

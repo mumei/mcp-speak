@@ -15,7 +15,8 @@ test("a fresh browser polls without keys and keeps cleared active speech before 
     };
     vm.runInNewContext(source, {
       AbortSignal,
-      document: { getElementById: element, createDocumentFragment: node, createElement: node, addEventListener() {}, hidden: false },
+      document: { getElementById: element, createDocumentFragment: node, createElement: node, querySelectorAll: () => [], addEventListener() {}, hidden: false },
+      matchMedia: () => ({ matches: true, addEventListener() {} }),
       fetch: async (url, options) => { if (url === "/api/state") requests++; assert.equal(options.headers.Authorization, undefined); return { ok: true, json: async () => url === "/api/voices" ? { voices: [] } : ({ state: { pending: 1, connections: 1, muted: false, settings: { voice: null, rate: 175 }, current: { jobId: "active", text: "earlier active speech", status: "playing", acceptedAt: 1 } }, history: { entries: [{ jobId: "pending", text: "later queued speech", status: "accepted", acceptedAt: 2 }] } }) }; },
       setInterval: (callback) => { poll = callback; },
     });
@@ -30,6 +31,53 @@ test("a fresh browser polls without keys and keeps cleared active speech before 
     assert.equal(rows[0].className, "history-row is-current");
     assert.equal(rows[0].children[1].children[0].textContent, "earlier active speech");
     assert.equal(rows[1].children[1].children[0].textContent, "later queued speech");
+});
+
+test("mobile drawer keeps draft and scroll across close paths and desktop transitions without speech actions", async () => {
+  const source = await readFile(new URL("../src/web/app.js", import.meta.url), "utf8");
+  const elements = new Map(); const surfaces = [{ inert: false }, { inert: false }];
+  const document = { hidden: false, body: { style: {}, classList: { add() {}, remove() {} } }, documentElement: { clientWidth: 375 }, addEventListener() {}, querySelectorAll: () => surfaces };
+  const node = (id = "") => ({ id, dataset: {}, value: "", children: [], handlers: {}, attributes: {},
+    append(...children) { for (const child of children) { if (child.parent) child.parent.children = child.parent.children.filter(n => n !== child); child.parent = this; this.children.push(child); } },
+    replaceChildren(...children) { this.children = []; this.append(...children); },
+    addEventListener(type, handler) { this.handlers[type] = handler; },
+    setAttribute(name, value) { this.attributes[name] = value; },
+    focus() { document.activeElement = this; },
+    contains(target) { return target === this || this.children.some(child => child.contains(target)); },
+    querySelector() { return elements.get("hold"); },
+    querySelectorAll() { return [get("close-settings"), get("hold"), get("rate"), get("preview"), get("save-settings")]; },
+    getClientRects() { return [{}]; },
+    showModal() { this.open = true; }, close() { this.open = false; this.handlers.close?.(); },
+    getBoundingClientRect() { return { left: 16, right: 375, top: 0, bottom: 800 }; },
+  });
+  document.getElementById = id => { if (!elements.has(id)) elements.set(id, node(id)); return elements.get(id); };
+  document.createElement = document.createDocumentFragment = node;
+  const get = document.getElementById;
+  get("settings-home").append(get("settings-panel")); get("settings-panel").append(get("hold"));
+  const window = { scrollX: 0, scrollY: 18000, scrollTo(x, y) { this.scrollX = x; this.scrollY = y; } };
+  const media = { matches: false, addEventListener(type, handler) { this.change = handler; } };
+  const calls = [];
+  vm.runInNewContext(source, { document, window, matchMedia: () => media, AbortSignal, setInterval() {}, fetch: async (url, options) => {
+    calls.push([url, options.method]); return { ok: true, json: async () => url === "/api/voices" ? { voices: [] } : { state: { muted: true, muteMode: "hold", settings: { voice: null, rate: 175 } }, history: { entries: [] } } };
+  } });
+  await new Promise(setImmediate);
+  const open = () => { get("open-settings").focus(); get("open-settings").handlers.click(); };
+  const assertClosed = () => {
+    assert.equal(get("settings-dialog").open, false); assert.equal(get("settings-panel").parent, get("settings-home"));
+    assert.equal(window.scrollY, 18000); assert.equal(document.body.style.top, ""); assert.ok(surfaces.every(n => !n.inert));
+    assert.equal(get("rate").value, "333"); assert.equal(get("voice").value, "Kyoko");
+  };
+  get("rate").value = "333"; get("voice").value = "Kyoko";
+  open(); assert.equal(document.body.style.top, "-18000px"); assert.ok(surfaces.every(n => n.inert)); assert.equal(document.activeElement, get("hold"));
+  get("save-settings").focus(); get("settings-dialog").handlers.keydown({ key: "Tab", shiftKey: false, preventDefault() {} }); assert.equal(document.activeElement, get("close-settings"));
+  get("settings-dialog").handlers.keydown({ key: "Tab", shiftKey: true, preventDefault() {} }); assert.equal(document.activeElement, get("save-settings"));
+  get("settings-dialog").handlers.cancel({ preventDefault() {} }); assertClosed(); assert.equal(document.activeElement, get("open-settings"));
+  open(); get("close-settings").handlers.click(); assertClosed();
+  open(); get("settings-dialog").handlers.pointerdown({ clientX: 2, clientY: 400 }); get("settings-dialog").handlers.click({ clientX: 2, clientY: 400 }); assertClosed();
+  open(); media.matches = true; media.change(); assertClosed(); assert.equal(document.activeElement, get("hold"));
+  media.matches = false; media.change(); assert.equal(document.activeElement, get("open-settings"));
+  assert.ok(calls.every(([, method]) => method === "GET"));
+  assert.equal(get("mobile-mute-state").textContent, "保留中");
 });
 
 test("Web API needs no key but retains exact Host and same Origin for controls", async (t) => {

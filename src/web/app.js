@@ -17,7 +17,8 @@ function enabled() {
   $("reload-voices").disabled = loadingVoices || busy;
   $("reload-voices").setAttribute("aria-busy", String(loadingVoices));
 }
-function error(message) { $("error").textContent = message; $("error").hidden = !message; }
+function error(message) { for (const id of ["error", "drawer-error"]) { $(id).textContent = message; $(id).hidden = !message; } }
+function mobileMute(message) { $("mobile-mute-state").textContent = message; }
 function feedback(message, state = "") { $("voice-feedback").textContent = message; $("voice-feedback").dataset.state = state; }
 function voiceOptions() {
   const options = document.createDocumentFragment();
@@ -60,6 +61,7 @@ function render({ state, history }) {
   $("clients").textContent = state.connections;
   $("play-state").textContent = state.fault ? "安全停止" : state.current ? names[state.current.status] : state.muted ? "ミュート中" : "待機中";
   $("mute-state").textContent = state.muted ? state.muteMode === "hold" ? "保留ミュート中" : "破棄ミュート中" : "ミュート解除中";
+  mobileMute(state.fault ? "安全停止" : state.muted ? state.muteMode === "hold" ? "保留中" : "破棄中" : "再生可");
   $("hold").setAttribute("aria-pressed", String(state.muted && state.muteMode === "hold"));
   $("discard").setAttribute("aria-pressed", String(state.muted && state.muteMode === "discard"));
   $("preview-help").textContent = state.muted ? state.muteMode === "hold" ? "保留ミュート中の試聴は待機します。解除はご自身で操作してください。" : "破棄ミュート中の試聴は破棄され、音は出ません。" : "試聴も共有キューに並びます。設定の保存は行いません。";
@@ -101,6 +103,7 @@ async function refresh() {
     connected = false; $("connection").textContent = "接続できません・再確認中";
     $("play-state").textContent = "状態不明・履歴は最後に取得した表示";
     $("pending").textContent = "—"; $("clients").textContent = "—"; $("mute-state").textContent = "状態不明";
+    mobileMute("状態不明");
     error(`${err.message}。起動時のURLとWebプロセスを確認してください。`);
   } finally { reading = false; enabled(); }
 }
@@ -133,6 +136,63 @@ $("clear").addEventListener("click", () => { $("confirmation").value = ""; $("co
 $("close-dialog").addEventListener("click", () => $("clear-dialog").close());
 $("confirmation").addEventListener("input", () => { $("confirm-clear").disabled = $("confirmation").value !== "消去"; });
 $("clear-form").addEventListener("submit", (event) => { event.preventDefault(); if ($("confirmation").value !== "消去") return; $("clear-dialog").close(); void act("clear-history"); });
+const desktopLayout = matchMedia("(min-width: 60rem)");
+const settingsDialog = $("settings-dialog");
+const pageSurfaces = document.querySelectorAll("[data-page-surface]");
+let drawerSession;
+let backdropPress = false;
+function restoreSettings(restoreFocus = true) {
+  if (!drawerSession) return;
+  const session = drawerSession; drawerSession = undefined;
+  $("settings-home").append($("settings-panel"));
+  for (const surface of pageSurfaces) surface.inert = false;
+  document.body.classList.remove("drawer-open"); document.body.style.top = ""; document.body.style.width = "";
+  $("open-settings").setAttribute("aria-expanded", "false");
+  window.scrollTo(session.x, session.y);
+  if (restoreFocus) session.focus?.focus({ preventScroll: true });
+  else (session.activeInPanel || $("settings-panel").querySelector("button:not(:disabled), select:not(:disabled), input:not(:disabled)") || $("settings-link")).focus({ preventScroll: true });
+}
+function closeSettings(restoreFocus = true) {
+  if (!settingsDialog.open) return;
+  drawerSession.restoreFocus = restoreFocus;
+  if (!restoreFocus && $("settings-panel").contains(document.activeElement)) drawerSession.activeInPanel = document.activeElement;
+  settingsDialog.close(); restoreSettings(restoreFocus);
+}
+function openSettings() {
+  if (desktopLayout.matches || settingsDialog.open) return;
+  drawerSession = { x: window.scrollX, y: window.scrollY, focus: document.activeElement };
+  const width = document.documentElement.clientWidth;
+  $("drawer-content").append($("settings-panel"));
+  document.body.style.top = `${-drawerSession.y}px`; document.body.style.width = `${width}px`;
+  document.body.classList.add("drawer-open");
+  for (const surface of pageSurfaces) surface.inert = true;
+  $("open-settings").setAttribute("aria-expanded", "true");
+  settingsDialog.showModal();
+  $("drawer-content").scrollTop = 0;
+  const firstControl = $("settings-panel").querySelector("button:not(:disabled), select:not(:disabled), input:not(:disabled)");
+  (firstControl || $("close-settings")).focus({ preventScroll: true });
+}
+$("open-settings").addEventListener("click", openSettings);
+$("close-settings").addEventListener("click", () => closeSettings());
+$("settings-link").addEventListener("click", (event) => { if (!desktopLayout.matches) { event.preventDefault(); openSettings(); } });
+settingsDialog.addEventListener("cancel", (event) => { event.preventDefault(); closeSettings(); });
+settingsDialog.addEventListener("close", () => { if (!settingsDialog.open) restoreSettings(drawerSession?.restoreFocus !== false); });
+settingsDialog.addEventListener("keydown", (event) => {
+  if (event.key !== "Tab") return;
+  const controls = [...settingsDialog.querySelectorAll("button:not(:disabled), input:not(:disabled), select:not(:disabled), a[href]")].filter(control => control.getClientRects().length > 0);
+  if (!controls.length) return;
+  event.preventDefault();
+  const index = controls.indexOf(document.activeElement);
+  const next = event.shiftKey ? (index <= 0 ? controls.length - 1 : index - 1) : (index + 1) % controls.length;
+  controls[next].focus();
+});
+const outsideDrawer = (event) => { const rect = settingsDialog.getBoundingClientRect(); return event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom; };
+settingsDialog.addEventListener("pointerdown", (event) => { backdropPress = outsideDrawer(event); });
+settingsDialog.addEventListener("click", (event) => { if (backdropPress && outsideDrawer(event)) closeSettings(); backdropPress = false; });
+desktopLayout.addEventListener("change", () => {
+  if (desktopLayout.matches) closeSettings(false);
+  else if ($("settings-panel").contains(document.activeElement)) $("open-settings").focus({ preventScroll: true });
+});
 document.addEventListener("visibilitychange", () => { if (!document.hidden) void refresh(); });
 void refresh();
 void loadVoices();
