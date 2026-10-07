@@ -22,9 +22,28 @@ function mobileMute(message) { $("mobile-mute-state").textContent = message; }
 function feedback(message, state = "") { $("voice-feedback").textContent = message; $("voice-feedback").dataset.state = state; }
 function voiceOptions() {
   const options = document.createDocumentFragment();
-  const add = (value, label) => { const option = document.createElement("option"); option.value = value; option.textContent = label; options.append(option); };
+  const add = (value, label, parent = options) => { const option = document.createElement("option"); option.value = value; option.textContent = label; parent.append(option); };
   add("", "Macの既定音声");
-  for (const voice of voices) add(voice.name, `${voice.name} · ${voice.language}`);
+  const languages = new Intl.DisplayNames(["ja"], { type: "language" });
+  const regions = new Intl.DisplayNames(["ja"], { type: "region" });
+  const groups = new Map();
+  for (const voice of voices) {
+    if (!groups.has(voice.language)) {
+      let label;
+      try {
+        const [language, region] = voice.language.split("_");
+        label = `${languages.of(language)}（${regions.of(region)}）`;
+      } catch { label = voice.language; }
+      groups.set(voice.language, { label, voices: [] });
+    }
+    groups.get(voice.language).voices.push(voice);
+  }
+  const compare = (left, right) => left.localeCompare(right, "ja") || (left < right ? -1 : left > right ? 1 : 0);
+  for (const [code, group] of [...groups].sort(([a, left], [b, right]) => compare(left.label, right.label) || compare(a, b))) {
+    const heading = document.createElement("optgroup"); heading.label = `${group.label} · ${code}`;
+    for (const voice of [...group.voices].sort((a, b) => compare(a.name, b.name))) add(voice.name, voice.name, heading);
+    options.append(heading);
+  }
   if (desiredVoice && !voices.some((voice) => voice.name === desiredVoice)) add(desiredVoice, `${desiredVoice}（利用不可）`);
   $("voice").replaceChildren(options); $("voice").value = desiredVoice;
 }
@@ -73,8 +92,11 @@ function render({ state, history }) {
     }
   } else throw new Error("ワーカーを更新・再起動してください。音声設定に対応していません");
   const list = document.createDocumentFragment();
-  const entries = [...history.entries].reverse();
-  if (state.current && !entries.some((entry) => entry.jobId === state.current.jobId)) entries.unshift(state.current);
+  const entries = [...history.entries];
+  if (state.current && !entries.some((entry) => entry.jobId === state.current.jobId)) {
+    const older = entries.findIndex((entry) => entry.acceptedAt < state.current.acceptedAt);
+    entries.splice(older < 0 ? entries.length : older, 0, state.current);
+  }
   for (const item of entries) {
     const current = state.current?.jobId === item.jobId;
     const entry = current ? state.current : item;

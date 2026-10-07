@@ -5,7 +5,7 @@ import { readFile } from "node:fs/promises";
 import vm from "node:vm";
 import { startWeb } from "../src/web-server.js";
 
-test("a fresh browser polls without keys and keeps cleared active speech before later history", async () => {
+test("a fresh browser shows newest history first and places cleared active speech by acceptance time", async () => {
   const source = await readFile(new URL("../src/web/app.js", import.meta.url), "utf8");
     const elements = new Map(); let requests = 0; let poll;
     const node = () => ({ dataset: {}, children: [], append(...children) { this.children.push(...children); }, replaceChildren(...children) { this.children = children; } });
@@ -28,9 +28,68 @@ test("a fresh browser polls without keys and keeps cleared active speech before 
     assert.equal(element("hold").disabled, false);
     assert.equal(element("unmute").disabled, false);
     const rows = element("history-list").children[0].children;
-    assert.equal(rows[0].className, "history-row is-current");
-    assert.equal(rows[0].children[1].children[0].textContent, "earlier active speech");
-    assert.equal(rows[1].children[1].children[0].textContent, "later queued speech");
+    assert.equal(rows[0].children[1].children[0].textContent, "later queued speech");
+    assert.equal(rows[1].className, "history-row is-current");
+    assert.equal(rows[1].children[1].children[0].textContent, "earlier active speech");
+});
+
+test("desktop and mobile history keep newest additions above the active and older rows", async () => {
+  const source = await readFile(new URL("../src/web/app.js", import.meta.url), "utf8");
+  const html = await readFile(new URL("../src/web/index.html", import.meta.url), "utf8");
+  assert.ok(html.indexOf('id="latest"') < html.indexOf('id="history-list"'));
+  assert.match(html, /href="#latest"/); assert.match(html, /aria-label="新しい順の発話履歴"/);
+  for (const desktop of [true, false]) {
+    const elements = new Map(); let poll;
+    const node = () => ({ dataset: {}, children: [], append(...items) { this.children.push(...items); }, replaceChildren(...items) { this.children = items; } });
+    const element = id => { if (!elements.has(id)) elements.set(id, { ...node(), id, value: "", setAttribute() {}, addEventListener() {} }); return elements.get(id); };
+    const current = { jobId: "active", text: "active", status: "playing", acceptedAt: 2 };
+    const entries = [{ jobId: "pending", text: "pending", status: "accepted", acceptedAt: 3 }, { ...current, status: "accepted" }, { jobId: "old", text: "old", status: "completed", acceptedAt: 1 }];
+    vm.runInNewContext(source, { AbortSignal, document: { getElementById: element, createDocumentFragment: node, createElement: node, querySelectorAll: () => [], addEventListener() {}, hidden: false },
+      matchMedia: () => ({ matches: desktop, addEventListener() {} }), setInterval: callback => { poll = callback; },
+      fetch: async url => ({ ok: true, json: async () => url === "/api/voices" ? { voices: [] } : { state: { current, settings: { voice: null, rate: 175 } }, history: { entries } } }) });
+    await new Promise(setImmediate);
+    const rows = () => element("history-list").children[0].children;
+    const texts = () => rows().map(row => row.children[1].children[0].textContent);
+    assert.deepEqual(Array.from(texts()), ["pending", "active", "old"]);
+    assert.equal(rows()[1].className, "history-row is-current"); assert.equal(rows()[1].dataset.status, "playing");
+    entries.unshift({ jobId: "new", text: "new", status: "accepted", acceptedAt: 4 });
+    poll(); await new Promise(setImmediate);
+    assert.deepEqual(Array.from(texts()), ["new", "pending", "active", "old"]);
+    entries.splice(2, 1);
+    poll(); await new Promise(setImmediate);
+    assert.deepEqual(Array.from(texts()), ["new", "pending", "active", "old"]);
+    entries.length = 0;
+    poll(); await new Promise(setImmediate);
+    assert.deepEqual(Array.from(texts()), ["active"]);
+  }
+});
+
+test("voice groups sort by language and name and preserve draft, system and unavailable selections", async () => {
+  const source = await readFile(new URL("../src/web/app.js", import.meta.url), "utf8");
+  for (const saved of ["Missing", null]) {
+    const elements = new Map();
+    const node = () => ({ dataset: {}, children: [], append(...items) { this.children.push(...items); }, replaceChildren(...items) { this.children = items; } });
+    const element = id => { if (!elements.has(id)) elements.set(id, { ...node(), id, value: "", setAttribute() {}, addEventListener() {} }); return elements.get(id); };
+    let voices = [{ name: "Zoe", language: "en_US" }, { name: "Otoya", language: "ja_JP" }, { name: "Alice", language: "en_US" }, { name: "Kyoko", language: "ja_JP" }];
+    const context = vm.createContext({ AbortSignal, document: { getElementById: element, createDocumentFragment: node, createElement: node, querySelectorAll: () => [], addEventListener() {}, hidden: false },
+      matchMedia: () => ({ matches: true, addEventListener() {} }), setInterval() {},
+      fetch: async url => ({ ok: true, json: async () => url === "/api/voices" ? { voices } : { state: { settings: { voice: saved, rate: 220 } }, history: { entries: [] } } }) });
+    vm.runInContext(source, context); await new Promise(setImmediate);
+    const options = () => element("voice").children[0].children;
+    const groups = () => options().filter(option => option.label);
+    const labels = new Intl.DisplayNames(["ja"], { type: "language" });
+    const regions = new Intl.DisplayNames(["ja"], { type: "region" });
+    assert.deepEqual(Array.from(groups(), group => group.label), [`${labels.of("en")}（${regions.of("US")}） · en_US`, `${labels.of("ja")}（${regions.of("JP")}） · ja_JP`]);
+    assert.deepEqual(Array.from(groups()[0].children, option => option.value), ["Alice", "Zoe"]);
+    assert.deepEqual(Array.from(groups()[1].children, option => option.value), ["Kyoko", "Otoya"]);
+    assert.equal(options()[0].value, ""); assert.equal(element("voice").value, saved || "");
+    if (saved) assert.equal(options().at(-1).textContent, "Missing（利用不可）");
+    element("voice").value = "Zoe"; element("rate").value = "333";
+    voices = [...voices].reverse(); await vm.runInContext("loadVoices()", context);
+    assert.equal(element("voice").value, "Zoe"); assert.equal(element("rate").value, "333");
+    voices = voices.filter(voice => voice.name !== "Zoe"); await vm.runInContext("loadVoices()", context);
+    assert.equal(element("voice").value, "Zoe"); assert.equal(options().at(-1).textContent, "Zoe（利用不可）");
+  }
 });
 
 test("mobile drawer keeps draft and scroll across close paths and desktop transitions without speech actions", async () => {

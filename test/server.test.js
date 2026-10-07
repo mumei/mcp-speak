@@ -31,6 +31,11 @@ test("MCP exposes both tools and returns valid successful results", async () => 
     assert.match(client.getInstructions(), /自動発話を発生させません/);
     assert.match(client.getInstructions(), /秘密情報/);
     assert.match(client.getInstructions(), /AIの判断でunmute_speech/);
+    assert.match(client.getInstructions(), /通常はtextだけ.*voiceとrateは省略/);
+    assert.match(client.getInstructions(), /必要なときだけ.*上書き/);
+    assert.match(tools.tools[0].description, /通常はtextだけ.*共有設定/);
+    for (const key of ["voice", "rate"]) assert.match(tools.tools[0].inputSchema.properties[key].description, /通常は省略.*必要時だけ.*上書き/);
+    assert.deepEqual(tools.tools[0].inputSchema.required, ["text"]);
     assert.match(tools.tools[0].description, /受付または破棄/);
     assert.match(tools.tools[0].description, /重複報告/);
     assert.match(tools.tools.find((tool) => tool.name === "unmute_speech").description, /明示依頼/);

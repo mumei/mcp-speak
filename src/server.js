@@ -17,13 +17,13 @@ export function createServer({ speech = createQueueSpeech() } = {}) {
     tools: [
       {
         name: "speak",
-        description: "必要な完了報告・問題やユーザー判断・明示的な読み上げ依頼に、短い要点だけを共通FIFOへ送ります。細かな途中経過・コード・生ログ・秘密情報・重複報告は読まないでください。応答は受付または破棄で、再生開始・完了を意味しません。",
+        description: "必要な完了報告・問題やユーザー判断・明示的な読み上げ依頼に、短い要点だけを共通FIFOへ送ります。通常はtextだけを渡し、voice・rateは省略してWebの共有設定を使ってください。ユーザーが声・速度の変更を求めた発話など、必要なときだけ明示指定でその発話を上書きできます。細かな途中経過・コード・生ログ・秘密情報・重複報告は読まないでください。応答は受付または破棄で、再生開始・完了を意味しません。",
         inputSchema: {
           type: "object",
           properties: {
             text: { type: "string", minLength: 1, description: "短い非秘密の要点。同じ内容を重複送信しない。UTF-8で64KiB以内" },
-            voice: { type: "string", minLength: 1, description: "利用可能な音声名。明示指定を優先し、省略時はWebで保存した共有設定（未設定ならシステム既定）" },
-            rate: { type: "integer", minimum: 1, maximum: 500, description: "1分あたりの単語数。明示指定を優先し、省略時はWebで保存した共有設定（初期値175）" },
+            voice: { type: "string", minLength: 1, description: "通常は省略してWebの共有設定を使用（未設定ならシステム既定）。ユーザーが特定の声を求めた発話など、必要時だけ利用可能な音声名を明示してその発話を上書き" },
+            rate: { type: "integer", minimum: 1, maximum: 500, description: "1分あたりの単語数。通常は省略してWebの共有設定を使用（初期値175を毎回指定しない）。ユーザーが速度変更を求めた発話など、必要時だけ明示してその発話を上書き" },
           },
           required: ["text"],
           additionalProperties: false,
