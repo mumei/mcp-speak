@@ -38,8 +38,8 @@ test("a fresh browser shows newest history first and places cleared active speec
 test("desktop and mobile history keep newest additions above the active and older rows", async () => {
   const source = await readFile(new URL("../src/web/app.js", import.meta.url), "utf8");
   const html = await readFile(new URL("../src/web/index.html", import.meta.url), "utf8");
-  assert.ok(html.indexOf('id="latest"') < html.indexOf('id="history-list"'));
-  assert.match(html, /href="#latest"/); assert.match(html, /aria-label="新しい順の発話履歴"/);
+  assert.doesNotMatch(html, /最新へ|href="#latest"|id="latest"|latest-link/);
+  assert.match(html, /aria-label="新しい順の発話履歴"/);
   assert.doesNotMatch(html, /<footer|<nav|id="settings-link"|このMacで、声を整える/);
   assert.match(html, /id="open-settings"/);
   for (const desktop of [true, false]) {

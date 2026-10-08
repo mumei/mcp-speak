@@ -56,9 +56,9 @@ dialog form { display: grid; gap: var(--space-md); } input { width: 100%; paddin
 /* Console adaptation: user-requested history left / controls right; no marketing hero. */
 header { border-bottom: var(--rule-width) solid var(--color-rule); }
 nav { display: flex; align-items: center; gap: var(--space-sm); }
-nav a, .latest-link { display: inline-flex; align-items: center; min-height: 44px; padding-inline: var(--space-xs); color: var(--color-muted); white-space: nowrap; text-underline-offset: .2em; }
-nav a, .latest-link, button { line-height: 1; }
-nav a:active, .latest-link:active { color: var(--color-accent); }
+nav a { display: inline-flex; align-items: center; min-height: 44px; padding-inline: var(--space-xs); color: var(--color-muted); white-space: nowrap; text-underline-offset: .2em; }
+nav a, button { line-height: 1; }
+nav a:active { color: var(--color-accent); }
 button, input, select, a { outline: 2px solid var(--color-focus-rest); outline-offset: 1px; }
 button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 1px; }
 .page-title { display: grid; gap: var(--space-xs); padding-block: var(--space-xl); }
@@ -105,7 +105,7 @@ button[aria-busy="true"] { border-style: dashed; }
 footer.foot-stmt { margin-top: var(--space-2xl); display: grid; gap: var(--space-xs); border: 0; }
 .foot-stmt__line { font: 700 var(--text-lg)/1.3 var(--font-display); }
 dialog { position: fixed; inset: 0; margin: auto; height: fit-content; max-height: 80dvh; overflow-y: auto; }
-@media (hover: hover) { select:hover:not(:disabled) { background: var(--color-soft); color: var(--color-ink); } nav a:hover, .latest-link:hover { color: var(--color-accent); } }
+@media (hover: hover) { select:hover:not(:disabled) { background: var(--color-soft); color: var(--color-ink); } nav a:hover { color: var(--color-accent); } }
 @media (min-width: 60rem) {
   .console-layout { grid-template-columns: minmax(0, 1fr) 22rem; gap: var(--space-2xl); }
   .settings-panel { position: sticky; top: var(--space-md); }
