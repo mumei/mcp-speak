@@ -133,3 +133,21 @@ body.drawer-open { position: fixed; inset-inline: 0; }
   .mobile-toolbar { display: none; }
   body { padding-bottom: 0; }
 }
+
+/* Keep mobile controls reachable at the upper-right without covering the wordmark. */
+@media (max-width: 59.999rem) {
+  body { padding-bottom: 0; }
+  header { padding-inline-end: calc(8rem + var(--space-md)); }
+  .mobile-toolbar {
+    inset-inline-start: auto;
+    inset-inline-end: max(var(--space-md), env(safe-area-inset-right));
+    top: max(var(--space-lg), env(safe-area-inset-top));
+    bottom: auto;
+    flex-direction: column-reverse;
+    align-items: flex-end;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+  #mobile-mute-state { padding: var(--space-xs); background: var(--color-surface); border-radius: var(--radius-sm); }
+}
