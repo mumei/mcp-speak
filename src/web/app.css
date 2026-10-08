@@ -151,3 +151,12 @@ body.drawer-open { position: fixed; inset-inline: 0; }
   }
   #mobile-mute-state { padding: var(--space-xs); background: var(--color-surface); border-radius: var(--radius-sm); }
 }
+
+/* Semantic operation colors retain labels and a visible selected/disabled treatment. */
+#hold { --operation-ink: var(--color-hold-ink); --operation-soft: var(--color-hold-soft); --operation-hover: var(--color-hold-hover); }
+#discard { --operation-ink: var(--color-discard-ink); --operation-soft: var(--color-discard-soft); --operation-hover: var(--color-discard-hover); }
+#unmute { --operation-ink: var(--color-resume-ink); --operation-soft: var(--color-resume-soft); --operation-hover: var(--color-resume-hover); }
+.mute-buttons button { background: var(--operation-soft); color: var(--operation-ink); border-color: var(--operation-ink); }
+.mute-buttons button:hover:not(:disabled) { background: var(--operation-hover); color: var(--operation-ink); }
+.mute-buttons button[aria-pressed="true"], .mute-buttons button[aria-pressed="true"]:hover:not(:disabled) { background: var(--operation-ink); color: var(--color-surface); border-color: var(--operation-ink); text-decoration: underline; text-underline-offset: .2em; text-decoration-thickness: 2px; }
+.mute-buttons button:disabled { background: var(--color-paper); color: var(--color-muted); border-color: var(--color-muted); border-style: dashed; opacity: 1; }

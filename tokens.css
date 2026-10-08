@@ -7,6 +7,9 @@
   --color-focus: oklch(58% 0.14 256);
   --color-focus-rest: transparent;
   --color-backdrop: oklch(24% 0.018 258 / .35);
+  --color-hold-ink: oklch(38% .09 65); --color-hold-soft: oklch(95% .05 85); --color-hold-hover: oklch(91% .07 85);
+  --color-discard-ink: oklch(38% .12 25); --color-discard-soft: oklch(95% .025 25); --color-discard-hover: oklch(91% .05 25);
+  --color-resume-ink: oklch(36% .085 150); --color-resume-soft: oklch(95% .025 150); --color-resume-hover: oklch(91% .05 150);
   --z-toolbar: 2;
   --font-display: "Avenir Next", "Hiragino Sans", sans-serif;
   --font-body: -apple-system, "Hiragino Sans", "Yu Gothic", sans-serif;
