@@ -160,3 +160,18 @@ body.drawer-open { position: fixed; inset-inline: 0; }
 .mute-buttons button:hover:not(:disabled) { background: var(--operation-hover); color: var(--operation-ink); }
 .mute-buttons button[aria-pressed="true"], .mute-buttons button[aria-pressed="true"]:hover:not(:disabled) { background: var(--operation-ink); color: var(--color-surface); border-color: var(--operation-ink); text-decoration: underline; text-underline-offset: .2em; text-decoration-thickness: 2px; }
 .mute-buttons button:disabled { background: var(--color-paper); color: var(--color-muted); border-color: var(--color-muted); border-style: dashed; opacity: 1; }
+
+/* Shared state and history controls stay in reach while reading a long history. */
+.app-header { position: sticky; top: 0; z-index: var(--z-toolbar); display: grid; justify-content: stretch; gap: var(--space-sm); background: var(--color-paper); padding-inline-end: clamp(var(--space-md), 4vw, var(--space-xl)); }
+.brand-status { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-xs) var(--space-sm); }
+#connection { display: inline-flex; align-items: center; gap: var(--space-xs); line-height: 1; white-space: nowrap; }
+#connection::before { content: ""; width: .5rem; height: .5rem; border-radius: 50%; background: currentColor; }
+#connection[data-state="connected"] { color: var(--color-resume-ink); }
+#connection[data-state="checking"] { color: var(--color-hold-ink); }
+#connection[data-state="disconnected"], #connection[data-state="fault"] { color: var(--color-discard-ink); }
+.header-operations { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-sm); }
+.header-operations .stream-summary { gap: var(--space-xs) var(--space-sm); padding: 0; }
+.stream-summary > span { white-space: nowrap; }
+main { padding-block: var(--space-lg); }
+@media (max-width: 59.999rem) { .brand-status { margin-inline-end: 8rem; } }
+.mobile-toolbar #mobile-mute-state { display: none; } /* The sticky header shows the mode; retain the button's accessible description. */

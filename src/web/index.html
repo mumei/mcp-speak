@@ -6,17 +6,18 @@
   <link rel="stylesheet" href="/app.css"><script src="/app.js" defer></script>
 </head>
 <body>
-  <header data-page-surface><a class="wordmark" href="/">MCP Speak</a></header>
+  <header class="app-header" data-page-surface>
+    <div class="brand-status"><a class="wordmark" href="/">MCP Speak</a><span id="connection" role="status" tabindex="-1" data-state="checking" aria-label="共有ワーカーへの接続を確認中">確認中</span></div>
+    <div class="header-operations"><div class="stream-summary" aria-label="共有キューの状態"><span id="play-state">取得中</span><span>待機 <b id="pending">—</b></span><span>接続 <b id="clients">—</b></span></div><button id="clear" disabled>履歴を消去</button></div>
+  </header>
   <main data-page-surface>
-    <div class="page-title"><h1>発話履歴と音声設定</h1><span id="connection" role="status" tabindex="-1">接続を確認中</span></div>
     <p id="error" class="error" role="alert" hidden></p>
     <div class="console-layout">
       <section id="conversation" class="conversation" aria-labelledby="history-title">
         <div class="section-head"><h2 id="history-title">発話履歴</h2></div>
-        <div class="stream-summary"><span id="play-state">取得中</span><span>待機 <b id="pending">—</b></span><span>接続 <b id="clients">—</b></span></div>
         <p id="empty">まだ履歴はありません。MCPからの発話や試聴がここに並びます。</p>
         <ol id="history-list" aria-label="新しい順の発話履歴"></ol>
-        <div class="history-end"><p class="hint">直近100件・各512文字まで。ワーカー終了で消えます。</p><button id="clear" disabled>履歴を消去</button></div>
+        <div class="history-end"><p class="hint">直近100件・各512文字まで。ワーカー終了で消えます。</p></div>
       </section>
       <div id="settings-home"><aside id="settings-panel" class="settings-panel" aria-label="再生操作と音声設定">
         <section class="mute-controls" aria-labelledby="mute-title">

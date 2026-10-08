@@ -23,7 +23,8 @@ test("a fresh browser shows newest history first and places cleared active speec
     await new Promise(setImmediate);
     poll(); poll(); await new Promise(setImmediate);
     assert.equal(requests, 2);
-    assert.equal(element("connection").textContent, "共有ワーカーに接続中");
+    assert.equal(element("connection").textContent, "接続済み");
+    assert.equal(element("connection").dataset.state, "connected");
     assert.equal(element("error").textContent, "");
     assert.equal(element("hold").disabled, false);
     assert.equal(element("unmute").disabled, false);
@@ -39,6 +40,9 @@ test("desktop and mobile history keep newest additions above the active and olde
   const source = await readFile(new URL("../src/web/app.js", import.meta.url), "utf8");
   const html = await readFile(new URL("../src/web/index.html", import.meta.url), "utf8");
   assert.doesNotMatch(html, /最新へ|href="#latest"|id="latest"|latest-link/);
+  assert.doesNotMatch(html, /<h1>発話履歴と音声設定/);
+  const header = html.slice(html.indexOf("<header"), html.indexOf("</header>"));
+  for (const id of ["connection", "play-state", "pending", "clients", "clear"]) assert.match(header, new RegExp(`id="${id}"`));
   assert.match(html, /aria-label="新しい順の発話履歴"/);
   assert.doesNotMatch(html, /<footer|<nav|id="settings-link"|このMacで、声を整える/);
   assert.match(html, /id="open-settings"/);
@@ -82,10 +86,13 @@ test("mute labels stay hidden normally and show mute, fault and connection failu
     state.muted = true; state.muteMode = mode; poll(); await new Promise(setImmediate);
     assert.equal(element("mute-state").hidden, false); assert.equal(element("mobile-mute-state").hidden, false);
     assert.equal(element("mute-state").textContent, mode === "hold" ? "保留ミュート中" : "破棄ミュート中");
+    assert.equal(element("play-state").textContent, mode === "hold" ? "保留中" : "破棄中");
   }
   state.muted = false; state.fault = "安全停止の理由"; poll(); await new Promise(setImmediate);
+  assert.equal(element("connection").textContent, "異常"); assert.equal(element("connection").dataset.state, "fault");
   assert.equal(element("mobile-mute-state").textContent, "安全停止"); assert.equal(element("error").hidden, false);
   offline = true; poll(); await new Promise(setImmediate);
+  assert.equal(element("connection").textContent, "未接続"); assert.equal(element("connection").dataset.state, "disconnected");
   assert.equal(element("mute-state").hidden, false); assert.equal(element("mute-state").textContent, "状態不明");
   assert.equal(element("mobile-mute-state").textContent, "状態不明"); assert.equal(element("hold").disabled, true);
   offline = false; delete state.fault; poll(); await new Promise(setImmediate);

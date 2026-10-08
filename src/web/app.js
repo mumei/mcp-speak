@@ -19,6 +19,7 @@ function enabled() {
 }
 function error(message) { for (const id of ["error", "drawer-error"]) { $(id).textContent = message; $(id).hidden = !message; } }
 function mobileMute(message) { $("mobile-mute-state").textContent = message; $("mobile-mute-state").hidden = !message; }
+function connectionState(state, label, description) { $("connection").dataset.state = state; $("connection").textContent = label; $("connection").setAttribute("aria-label", description); }
 function feedback(message, state = "") { $("voice-feedback").textContent = message; $("voice-feedback").dataset.state = state; }
 function voiceOptions() {
   const options = document.createDocumentFragment();
@@ -75,10 +76,10 @@ async function api(path, args) {
   return result;
 }
 function render({ state, history }) {
-  $("connection").textContent = "共有ワーカーに接続中";
+  connectionState(state.fault ? "fault" : "connected", state.fault ? "異常" : "接続済み", state.fault ? `共有ワーカーは安全停止中: ${state.fault}` : "共有ワーカーに接続中");
   $("pending").textContent = state.pending;
   $("clients").textContent = state.connections;
-  $("play-state").textContent = state.fault ? "安全停止" : state.current ? names[state.current.status] : state.muted ? "ミュート中" : "待機中";
+  $("play-state").textContent = state.fault ? "安全停止" : state.muted ? state.muteMode === "hold" ? "保留中" : "破棄中" : state.current ? names[state.current.status] : "待機中";
   $("mute-state").textContent = state.muted ? state.muteMode === "hold" ? "保留ミュート中" : "破棄ミュート中" : "";
   $("mute-state").hidden = !state.muted;
   mobileMute(state.fault ? "安全停止" : state.muted ? state.muteMode === "hold" ? "保留中" : "破棄中" : "");
@@ -123,8 +124,8 @@ async function refresh() {
   reading = true;
   try { render(await api("state")); connected = true; }
   catch (err) {
-    connected = false; $("connection").textContent = "接続できません・再確認中";
-    $("play-state").textContent = "状態不明・履歴は最後に取得した表示";
+    connected = false; connectionState("disconnected", "未接続", "共有ワーカーに接続できません。再確認中です。履歴は最後に取得した表示です");
+    $("play-state").textContent = "状態不明";
     $("pending").textContent = "—"; $("clients").textContent = "—"; $("mute-state").textContent = "状態不明"; $("mute-state").hidden = false;
     mobileMute("状態不明");
     error(`${err.message}。起動時のURLとWebプロセスを確認してください。`);
@@ -132,7 +133,7 @@ async function refresh() {
 }
 async function act(path, args = {}) {
   if (busy || !connected) return;
-  busy = true; enabled(); actionError = ""; error(""); $("connection").textContent = "操作の結果を確認中";
+  busy = true; enabled(); actionError = ""; error(""); connectionState("checking", "確認中", "操作の結果を確認中");
   try {
     const result = await api(path, args);
     if (path === "settings") feedback(`保存済み: ${result.voice || "Macの既定音声"} · ${result.rate} 単語/分`, "success");
