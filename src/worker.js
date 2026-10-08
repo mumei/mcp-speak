@@ -1,13 +1,13 @@
 import net from "node:net";
 import fs from "node:fs/promises";
-import { constants, openSync, readFileSync, closeSync, writeFileSync, renameSync, fstatSync, unlinkSync } from "node:fs";
+import { constants, openSync, readFileSync, closeSync, writeFileSync, renameSync, fstatSync } from "node:fs";
 import path from "node:path";
 import { fork } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { timingSafeEqual, randomUUID } from "node:crypto";
 import { prepareConfig, queueConfig, readMessages, send, MAX_JOBS, MAX_TEXT_BYTES } from "./queue-config.js";
 import { validateSpeak, validateObject } from "./speech.js";
-import { DEFAULT_SETTINGS, validateSettings } from "./speech-settings.js";
+import { settingsStore } from "./settings-store.js";
 
 export async function startWorker({ config = queueConfig(), player = ["/usr/bin/say"], idleMs = 60000, playbackMs = 120000, onEvent = () => {} } = {}) {
   const prepared = await prepareConfig(config);
@@ -22,16 +22,8 @@ export async function startWorker({ config = queueConfig(), player = ["/usr/bin/
   let muted = false;
   let muteMode = "hold";
   let history = [];
-  let settings = { ...DEFAULT_SETTINGS };
-  const settingsPath = path.join(config.directory, "speech-settings.json");
-  try {
-    const fd = openSync(settingsPath, constants.O_RDONLY | constants.O_NOFOLLOW);
-    try {
-      const stat = fstatSync(fd);
-      if (!stat.isFile() || stat.uid !== process.getuid() || (stat.mode & 0o077) !== 0 || stat.size > 4096) throw new Error("音声設定ファイルの権限・サイズが不正です");
-      settings = validateSettings(JSON.parse(readFileSync(fd, "utf8")));
-    } finally { closeSync(fd); }
-  } catch (error) { if (error.code !== "ENOENT") throw error; }
+  const store = settingsStore(config);
+  let settings = store.settings;
   const authenticatedSockets = new Set();
   function remember(id, input, status, kind) {
     const characters = Array.from(input.text);
@@ -100,11 +92,7 @@ export async function startWorker({ config = queueConfig(), player = ["/usr/bin/
           connections: authenticatedSockets.size, settings: { ...settings }, current: active ? { ...active.record } : null });
         if (message.type === "settings") return reply({ ...settings });
         if (message.type === "save_settings") {
-          const next = validateSettings(message.args);
-          const temporary = `${settingsPath}.${randomUUID()}.tmp`;
-          try { writeFileSync(temporary, JSON.stringify(next), { flag: "wx", mode: 0o600 }); renameSync(temporary, settingsPath); }
-          catch (error) { try { unlinkSync(temporary); } catch {} throw error; }
-          settings = next;
+          settings = store.save(message.args);
           return reply({ ...settings });
         }
         if (message.type === "history") return reply({ entries: [...history].reverse(), limit: 100, textLimit: 512, storage: "memory" });

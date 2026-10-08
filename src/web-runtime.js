@@ -68,7 +68,7 @@ export async function attachWeb({ config = queueConfig(), port = webPort(), sign
     if (!launched) {
       const child = spawn(process.execPath, [fileURLToPath(new URL("./web-cli.js", import.meta.url)), "--daemon"], {
         detached: true, stdio: "ignore", env: { ...process.env, MCP_SPEAK_QUEUE_DIR: config.directory,
-          MCP_SPEAK_QUEUE_PORT: String(config.port), MCP_SPEAK_WEB_PORT: String(port) },
+          MCP_SPEAK_QUEUE_PORT: String(config.port), MCP_SPEAK_SETTINGS_DIR: config.settingsDirectory || config.directory, MCP_SPEAK_WEB_PORT: String(port) },
       });
       child.once("error", (error) => { launchError = error; }); child.unref(); launched = true;
     }

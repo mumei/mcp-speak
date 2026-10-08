@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import { constants } from "node:fs";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
+import { homedir } from "node:os";
 
 export const MAX_JOBS = 100;
 export const MAX_TEXT_BYTES = 65536;
@@ -10,6 +11,7 @@ export function queueConfig() {
   const uid = process.getuid();
   return {
     directory: process.env.MCP_SPEAK_QUEUE_DIR || `/tmp/mcp-speak-${uid}-v1`,
+    settingsDirectory: process.env.MCP_SPEAK_SETTINGS_DIR || process.env.MCP_SPEAK_QUEUE_DIR || path.join(homedir(), "Library", "Application Support", "mcp-speak"),
     port: Number(process.env.MCP_SPEAK_QUEUE_PORT || (43000 + uid % 1000)),
   };
 }

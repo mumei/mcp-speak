@@ -121,6 +121,28 @@ test("voice groups sort by language and name and preserve draft, system and unav
   }
 });
 
+test("saving settings reports failure without claiming success or losing the draft", async () => {
+  const source = await readFile(new URL("../src/web/app.js", import.meta.url), "utf8");
+  const elements = new Map(); let saves = 0;
+  const node = () => ({ dataset: {}, children: [], handlers: {}, append(...items) { this.children.push(...items); }, replaceChildren(...items) { this.children = items; }, setAttribute() {}, addEventListener(type, handler) { this.handlers[type] = handler; } });
+  const element = id => { if (!elements.has(id)) elements.set(id, { ...node(), id, value: "" }); return elements.get(id); };
+  vm.runInNewContext(source, { AbortSignal, document: { getElementById: element, createDocumentFragment: node, createElement: node, querySelectorAll: () => [], addEventListener() {}, hidden: false },
+    matchMedia: () => ({ matches: true, addEventListener() {} }), setInterval() {},
+    fetch: async url => {
+      if (url === "/api/settings") { saves++; return { ok: false, status: 503, json: async () => ({ error: "設定ファイルを保存できません" }) }; }
+      return { ok: true, json: async () => url === "/api/voices" ? { voices: [{ name: "Kyoko", language: "ja_JP" }] } : { state: { settings: { voice: null, rate: 175 } }, history: { entries: [] } } };
+    } });
+  await new Promise(setImmediate);
+  element("voice").value = "Kyoko"; element("voice").handlers.change();
+  element("rate").value = "240"; element("rate").handlers.input();
+  assert.equal(saves, 0); assert.match(element("voice-feedback").textContent, /まだ保存していません/);
+  element("voice-form").handlers.submit({ preventDefault() {} }); await new Promise(setImmediate);
+  assert.equal(saves, 1); assert.equal(element("voice-feedback").dataset.state, "error");
+  assert.match(element("voice-feedback").textContent, /保存できません/);
+  assert.match(element("applied-settings").textContent, /175/);
+  assert.equal(element("voice").value, "Kyoko"); assert.equal(element("rate").value, "240");
+});
+
 test("mobile drawer keeps draft and scroll across close paths and desktop transitions without speech actions", async () => {
   const source = await readFile(new URL("../src/web/app.js", import.meta.url), "utf8");
   const elements = new Map(); const surfaces = [{ inert: false }, { inert: false }];

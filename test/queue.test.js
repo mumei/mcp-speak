@@ -21,7 +21,7 @@ async function waitFor(check, timeout = 8000) {
   throw new Error("test condition timed out");
 }
 
-async function context(t, playbackMs = 120000, idleMs = 5000) {
+async function context(t, playbackMs = 120000, idleMs = 5000, persistentSettings = false) {
   const root = await fs.mkdtemp("/tmp/mcp-speak-queue-test-");
   const listener = net.createServer();
   listener.listen(0, "127.0.0.1");
@@ -29,8 +29,10 @@ async function context(t, playbackMs = 120000, idleMs = 5000) {
   const port = listener.address().port;
   await new Promise((resolve) => listener.close(resolve));
   const config = { directory: `${root}/queue`, port };
+  if (persistentSettings) config.settingsDirectory = `${root}/settings`;
   const eventsPath = `${root}/events`;
   const env = { ...process.env, MCP_SPEAK_WEB_AUTOSTART: "0", MCP_SPEAK_QUEUE_DIR: config.directory, MCP_SPEAK_QUEUE_PORT: String(port), QUEUE_TEST_EVENTS: eventsPath, QUEUE_TEST_TIMEOUT: String(playbackMs), QUEUE_TEST_IDLE: String(idleMs) };
+  if (persistentSettings) env.MCP_SPEAK_SETTINGS_DIR = config.settingsDirectory;
   const workers = [];
   const clients = [];
   const queues = [];
@@ -112,6 +114,40 @@ test("shared settings resolve omitted fields once, keep queued jobs unchanged an
   const exited = once(c.worker, "exit"); c.worker.send({ close: true }); await exited; await c.start();
   assert.deepEqual(await two.settings(), { voice: "Kyoko", rate: 225 });
   assert.equal((await two.status()).muted, true);
+});
+
+test("Web saves persist beyond queue removal and restart with multiple MCP clients", async t => {
+  const c = await context(t, 120000, 5000, true);
+  const one = c.queue(); const two = c.queue();
+  const clients = await Promise.all([c.mcp(), c.mcp()]);
+  const web = await startWeb({ port: 0, speech: { ...c.queue(), listVoices: async () => "Kyoko ja_JP # hello\nOtoya ja_JP # hello" } });
+  t.after(() => web.close());
+  const post = args => fetch(`${web.origin}/api/settings`, { method: "POST", headers: { Origin: web.origin, "Content-Type": "application/json" }, body: JSON.stringify(args) });
+  const saved = await post({ voice: "Kyoko", rate: 240 });
+  assert.equal(saved.status, 200);
+  assert.deepEqual(await saved.json(), { voice: "Kyoko", rate: 240 });
+  const read = async () => (await (await fetch(`${web.origin}/api/state`)).json()).state.settings;
+  assert.deepEqual(await read(), { voice: "Kyoko", rate: 240 });
+  const results = await Promise.all([one.saveSettings({ voice: "Otoya", rate: 250 }), two.saveSettings({ voice: "Kyoko", rate: 260 })]);
+  const latest = await one.settings();
+  assert.ok(results.some(value => JSON.stringify(value) === JSON.stringify(latest)));
+  assert.deepEqual(JSON.parse(await fs.readFile(`${c.config.settingsDirectory}/speech-settings.json`, "utf8")), latest);
+  const exited = once(c.worker, "exit"); c.worker.send({ close: true }); await exited;
+  await fs.rm(c.config.directory, { recursive: true });
+  await c.start();
+  assert.deepEqual(await read(), latest);
+  await one.mute("hold");
+  for (const client of clients) {
+    const response = await client.callTool({ name: "speak", arguments: { text: "restored saved settings" } });
+    assert.match(response.content[0].text, new RegExp(`音声: ${latest.voice}`));
+    assert.match(response.content[0].text, new RegExp(`速度: ${latest.rate}`));
+  }
+  const file = `${c.config.settingsDirectory}/speech-settings.json`;
+  await fs.rename(file, `${file}.backup`); await fs.mkdir(file);
+  const failed = await post({ voice: "Kyoko", rate: 300 });
+  assert.equal(failed.status, 503); assert.match((await failed.json()).error, /音声設定ファイル/);
+  assert.deepEqual(await read(), latest);
+  await fs.rmdir(file); await fs.rename(`${file}.backup`, file);
 });
 
 test("preview obeys both mute modes and shares FIFO without applying draft settings", async (t) => {

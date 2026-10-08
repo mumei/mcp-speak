@@ -72,7 +72,7 @@ export function createQueueSpeech({ config = queueConfig(), autostart = true, lo
             const worker = spawn(process.execPath, [fileURLToPath(new URL("./worker.js", import.meta.url))], {
               detached: true,
               stdio: "ignore",
-              env: { ...process.env, MCP_SPEAK_QUEUE_DIR: config.directory, MCP_SPEAK_QUEUE_PORT: String(config.port) },
+              env: { ...process.env, MCP_SPEAK_QUEUE_DIR: config.directory, MCP_SPEAK_QUEUE_PORT: String(config.port), MCP_SPEAK_SETTINGS_DIR: config.settingsDirectory || config.directory },
             });
             worker.on("error", () => {});
             worker.unref();
