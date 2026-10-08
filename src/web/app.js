@@ -18,7 +18,7 @@ function enabled() {
   $("reload-voices").setAttribute("aria-busy", String(loadingVoices));
 }
 function error(message) { for (const id of ["error", "drawer-error"]) { $(id).textContent = message; $(id).hidden = !message; } }
-function mobileMute(message) { $("mobile-mute-state").textContent = message; }
+function mobileMute(message) { $("mobile-mute-state").textContent = message; $("mobile-mute-state").hidden = !message; }
 function feedback(message, state = "") { $("voice-feedback").textContent = message; $("voice-feedback").dataset.state = state; }
 function voiceOptions() {
   const options = document.createDocumentFragment();
@@ -79,8 +79,9 @@ function render({ state, history }) {
   $("pending").textContent = state.pending;
   $("clients").textContent = state.connections;
   $("play-state").textContent = state.fault ? "安全停止" : state.current ? names[state.current.status] : state.muted ? "ミュート中" : "待機中";
-  $("mute-state").textContent = state.muted ? state.muteMode === "hold" ? "保留ミュート中" : "破棄ミュート中" : "ミュート解除中";
-  mobileMute(state.fault ? "安全停止" : state.muted ? state.muteMode === "hold" ? "保留中" : "破棄中" : "再生可");
+  $("mute-state").textContent = state.muted ? state.muteMode === "hold" ? "保留ミュート中" : "破棄ミュート中" : "";
+  $("mute-state").hidden = !state.muted;
+  mobileMute(state.fault ? "安全停止" : state.muted ? state.muteMode === "hold" ? "保留中" : "破棄中" : "");
   $("hold").setAttribute("aria-pressed", String(state.muted && state.muteMode === "hold"));
   $("discard").setAttribute("aria-pressed", String(state.muted && state.muteMode === "discard"));
   $("preview-help").textContent = state.muted ? state.muteMode === "hold" ? "保留ミュート中の試聴は待機します。解除はご自身で操作してください。" : "破棄ミュート中の試聴は破棄され、音は出ません。" : "試聴も共有キューに並びます。設定の保存は行いません。";
@@ -124,7 +125,7 @@ async function refresh() {
   catch (err) {
     connected = false; $("connection").textContent = "接続できません・再確認中";
     $("play-state").textContent = "状態不明・履歴は最後に取得した表示";
-    $("pending").textContent = "—"; $("clients").textContent = "—"; $("mute-state").textContent = "状態不明";
+    $("pending").textContent = "—"; $("clients").textContent = "—"; $("mute-state").textContent = "状態不明"; $("mute-state").hidden = false;
     mobileMute("状態不明");
     error(`${err.message}。起動時のURLとWebプロセスを確認してください。`);
   } finally { reading = false; enabled(); }
@@ -172,7 +173,7 @@ function restoreSettings(restoreFocus = true) {
   $("open-settings").setAttribute("aria-expanded", "false");
   window.scrollTo(session.x, session.y);
   if (restoreFocus) session.focus?.focus({ preventScroll: true });
-  else (session.activeInPanel || $("settings-panel").querySelector("button:not(:disabled), select:not(:disabled), input:not(:disabled)") || $("settings-link")).focus({ preventScroll: true });
+  else (session.activeInPanel || $("settings-panel").querySelector("button:not(:disabled), select:not(:disabled), input:not(:disabled)") || $("connection")).focus({ preventScroll: true });
 }
 function closeSettings(restoreFocus = true) {
   if (!settingsDialog.open) return;
@@ -196,7 +197,6 @@ function openSettings() {
 }
 $("open-settings").addEventListener("click", openSettings);
 $("close-settings").addEventListener("click", () => closeSettings());
-$("settings-link").addEventListener("click", (event) => { if (!desktopLayout.matches) { event.preventDefault(); openSettings(); } });
 settingsDialog.addEventListener("cancel", (event) => { event.preventDefault(); closeSettings(); });
 settingsDialog.addEventListener("close", () => { if (!settingsDialog.open) restoreSettings(drawerSession?.restoreFocus !== false); });
 settingsDialog.addEventListener("keydown", (event) => {

@@ -6,9 +6,9 @@
   <link rel="stylesheet" href="/app.css"><script src="/app.js" defer></script>
 </head>
 <body>
-  <header data-page-surface><a class="wordmark" href="/">MCP Speak</a><nav aria-label="画面内の移動"><a href="#conversation">履歴</a><a id="settings-link" href="#settings-panel">設定</a></nav></header>
+  <header data-page-surface><a class="wordmark" href="/">MCP Speak</a></header>
   <main data-page-surface>
-    <div class="page-title"><h1>発話履歴と音声設定</h1><span id="connection" role="status">接続を確認中</span></div>
+    <div class="page-title"><h1>発話履歴と音声設定</h1><span id="connection" role="status" tabindex="-1">接続を確認中</span></div>
     <p id="error" class="error" role="alert" hidden></p>
     <div class="console-layout">
       <section id="conversation" class="conversation" aria-labelledby="history-title">
@@ -39,7 +39,6 @@
       </aside></div>
     </div>
   </main>
-  <footer class="foot-stmt" data-page-surface><p class="foot-stmt__line">このMacで、声を整える。</p><p class="hint">共有キューの操作画面。録音・外部送信は行いません。</p></footer>
   <div class="mobile-toolbar" data-page-surface><span id="mobile-mute-state" role="status">状態を確認中</span><button id="open-settings" aria-haspopup="dialog" aria-controls="settings-dialog" aria-expanded="false" aria-describedby="mobile-mute-state">操作・設定</button></div>
   <dialog id="settings-dialog" class="settings-dialog" aria-labelledby="settings-dialog-title"><div class="drawer-heading"><h2 id="settings-dialog-title">操作・設定</h2><button id="close-settings" type="button">閉じる</button></div><p id="drawer-error" class="error" role="alert" hidden></p><div id="drawer-content" class="drawer-content"></div></dialog>
   <dialog id="clear-dialog"><form id="clear-form"><h2>履歴の消去</h2><p>記録だけを消します。再生中・待機中の依頼は止まりません。</p><label for="confirmation">「消去」と入力してください</label><input id="confirmation" autocomplete="off"><div class="dialog-actions"><button type="button" id="close-dialog">戻る</button><button id="confirm-clear" type="submit" disabled>履歴を消去</button></div></form></dialog>

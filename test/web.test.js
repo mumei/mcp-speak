@@ -27,6 +27,8 @@ test("a fresh browser shows newest history first and places cleared active speec
     assert.equal(element("error").textContent, "");
     assert.equal(element("hold").disabled, false);
     assert.equal(element("unmute").disabled, false);
+    assert.equal(element("mute-state").hidden, true);
+    assert.equal(element("mobile-mute-state").hidden, true);
     const rows = element("history-list").children[0].children;
     assert.equal(rows[0].children[1].children[0].textContent, "later queued speech");
     assert.equal(rows[1].className, "history-row is-current");
@@ -38,6 +40,8 @@ test("desktop and mobile history keep newest additions above the active and olde
   const html = await readFile(new URL("../src/web/index.html", import.meta.url), "utf8");
   assert.ok(html.indexOf('id="latest"') < html.indexOf('id="history-list"'));
   assert.match(html, /href="#latest"/); assert.match(html, /aria-label="新しい順の発話履歴"/);
+  assert.doesNotMatch(html, /<footer|<nav|id="settings-link"|このMacで、声を整える/);
+  assert.match(html, /id="open-settings"/);
   for (const desktop of [true, false]) {
     const elements = new Map(); let poll;
     const node = () => ({ dataset: {}, children: [], append(...items) { this.children.push(...items); }, replaceChildren(...items) { this.children = items; } });
@@ -62,6 +66,31 @@ test("desktop and mobile history keep newest additions above the active and olde
     poll(); await new Promise(setImmediate);
     assert.deepEqual(Array.from(texts()), ["active"]);
   }
+});
+
+test("mute labels stay hidden normally and show mute, fault and connection failures", async () => {
+  const source = await readFile(new URL("../src/web/app.js", import.meta.url), "utf8");
+  const elements = new Map(); let poll; let offline = false;
+  const state = { muted: false, settings: { voice: null, rate: 175 } };
+  const node = () => ({ dataset: {}, children: [], append(...items) { this.children.push(...items); }, replaceChildren(...items) { this.children = items; } });
+  const element = id => { if (!elements.has(id)) elements.set(id, { ...node(), id, value: "", setAttribute() {}, addEventListener() {} }); return elements.get(id); };
+  vm.runInNewContext(source, { AbortSignal, document: { getElementById: element, createDocumentFragment: node, createElement: node, querySelectorAll: () => [], addEventListener() {}, hidden: false },
+    matchMedia: () => ({ matches: false, addEventListener() {} }), setInterval: callback => { poll = callback; },
+    fetch: async url => { if (offline) throw new Error("接続テスト失敗"); return { ok: true, json: async () => url === "/api/voices" ? { voices: [] } : { state, history: { entries: [] } } }; } });
+  await new Promise(setImmediate);
+  for (const mode of ["hold", "discard"]) {
+    state.muted = true; state.muteMode = mode; poll(); await new Promise(setImmediate);
+    assert.equal(element("mute-state").hidden, false); assert.equal(element("mobile-mute-state").hidden, false);
+    assert.equal(element("mute-state").textContent, mode === "hold" ? "保留ミュート中" : "破棄ミュート中");
+  }
+  state.muted = false; state.fault = "安全停止の理由"; poll(); await new Promise(setImmediate);
+  assert.equal(element("mobile-mute-state").textContent, "安全停止"); assert.equal(element("error").hidden, false);
+  offline = true; poll(); await new Promise(setImmediate);
+  assert.equal(element("mute-state").hidden, false); assert.equal(element("mute-state").textContent, "状態不明");
+  assert.equal(element("mobile-mute-state").textContent, "状態不明"); assert.equal(element("hold").disabled, true);
+  offline = false; delete state.fault; poll(); await new Promise(setImmediate);
+  assert.equal(element("mute-state").hidden, true); assert.equal(element("mobile-mute-state").hidden, true);
+  assert.equal(element("error").hidden, true);
 });
 
 test("voice groups sort by language and name and preserve draft, system and unavailable selections", async () => {
