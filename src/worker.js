@@ -8,6 +8,7 @@ import { timingSafeEqual, randomUUID } from "node:crypto";
 import { prepareConfig, queueConfig, readMessages, send, MAX_JOBS, MAX_TEXT_BYTES } from "./queue-config.js";
 import { validateSpeak, validateObject } from "./speech.js";
 import { settingsStore } from "./settings-store.js";
+import { waitForGuard } from "./playback-monitor.js";
 
 export async function startWorker({ config = queueConfig(), player = ["/usr/bin/say"], idleMs = 60000, playbackMs = 120000, onEvent = () => {} } = {}) {
   const prepared = await prepareConfig(config);
@@ -196,20 +197,16 @@ export async function startWorker({ config = queueConfig(), player = ["/usr/bin/
         active = { ...job, guard };
         job.record.status = "preparing";
         let result;
-        await new Promise((resolve, reject) => {
-          const watchdog = setTimeout(() => {
-            cancelActive();
-            reject(new Error("再生ガードの終了を確認できません。安全のため共有キューを停止しました"));
-          }, playbackMs + 5000);
-          guard.on("message", (message) => {
+        await waitForGuard(guard, {
+          playbackMs,
+          cancel: () => {
+            if (active?.guard === guard) cancelActive();
+          },
+          onMessage: (message) => {
             if (message.type === "result") result = message;
             if (message.type === "started") Object.assign(job.record, { status: "playing", startedAt: Date.now() });
-          });
-          guard.on("error", (error) => { clearTimeout(watchdog); reject(error); });
-          guard.once("exit", () => { clearTimeout(watchdog); resolve(); });
-          guard.send({ directory: config.directory, args: job.input, player, playbackMs }, (error) => {
-            if (error) { clearTimeout(watchdog); reject(error); }
-          });
+          },
+          start: (done) => guard.send({ directory: config.directory, args: job.input, player, playbackMs }, done),
         });
         const error = result?.error || (result ? undefined : "再生ガードが異常終了しました");
         outcome(job, active.cancelled || result?.cancelled ? "cancelled" : result?.ok ? "completed" : "failed", error);

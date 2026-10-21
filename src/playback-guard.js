@@ -4,6 +4,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { validateSpeak } from "./speech.js";
+import { monitorExit } from "./playback-monitor.js";
 
 let child;
 let cancelRequested = false;
@@ -48,8 +49,11 @@ process.once("message", async ({ directory, args, player, playbackMs }) => {
           if (process.connected && !cancelRequested) process.send({ type: "started" });
         });
       });
-      child.once("close", (code) => {
+      monitorExit(child, (code) => {
+        const ended = child;
         child = undefined;
+        ended.stdin.destroy();
+        ended.stderr.destroy();
         if (code === 0 && !cancelRequested) resolve();
         else reject(new Error(cancelRequested ? "再生はキャンセルされました" : `sayが失敗しました: ${errorText || code}`));
       });
@@ -65,7 +69,7 @@ process.once("message", async ({ directory, args, player, playbackMs }) => {
   } finally {
     clearTimeout(deadline);
     clearTimeout(killTimer);
-    // Only this guard removes its own lease, and only after its say has closed.
+    // Only this guard removes its own lease, and only after its say has exited.
     if (acquired && !child) {
       const record = JSON.parse(await fs.readFile(lease, "utf8"));
       if (record.owner === owner) await fs.unlink(lease);
